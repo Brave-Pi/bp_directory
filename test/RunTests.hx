@@ -133,8 +133,13 @@ class Test {
 			remote.getSingle('test').anon().bar().get();
 		}).next(r -> {
 			trace(r);
+			remote.getSingle('test').map().get(Date.now()).get();
+		})
+		.next(r -> {
+			trace(r);
 			asserts.done();
-		}).eager();
+		})
+		.eager();
 		return asserts;
 	}
 }

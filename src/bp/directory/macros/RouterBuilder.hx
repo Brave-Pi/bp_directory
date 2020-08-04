@@ -38,7 +38,7 @@ class EntityFieldRouterBuilder {
 }
 
 class RouterGenBase extends GenBase {
-	function getEntityPropertyRoutes(fields:Array<FieldInfo<Type>>, ?routerGen:ComplexType->Expr, ?useFactory = false)
+	function getEntityPropertyRoutes(fields:Array<FieldInfo<Type>>, routerGen:ComplexType->Expr, ?useFactory = false)
 		return [
 			for (field in fields) {
 				var name = field.name;
@@ -232,7 +232,7 @@ class FieldRouterGenBase extends RouterGenBase {
 		return ret;
 	}
 
-	function genMap(name:String, k:Type, v:Type) {
+	function genMap(name:String, k:Type, v:Type, routerGen:ComplexType->Expr) {
 		var kCt = k.toComplex();
 		var vCt = v.toComplex();
 		var ret = generate(name, (name, types) -> {
@@ -249,7 +249,7 @@ class FieldRouterGenBase extends RouterGenBase {
 					}
 					provider.query.push('key');
 					provider.query.replace(Std.string(key));
-					return new bp.directory.routing.Router.FieldRouter<$vCt>(provider);
+					return ${routerGen(vCt)};
 				}
 			};
 		});
@@ -269,7 +269,7 @@ class FieldRouterGen extends FieldRouterGenBase {
 		return genArray("bp.directory.routing.FieldRouter", t);
 
 	override function map(k:haxe.macro.Type, v:haxe.macro.Type)
-		return genMap("bp.directory.routing.FieldRouter", k, v);
+		return genMap("bp.directory.routing.FieldRouter", k, v, vCt -> macro new bp.directory.routing.Router.FieldRouter<$vCt>(provider));
 
 	override function dyn(e:Type, ct:ComplexType):Type
 		return throw 'abstract';
@@ -346,7 +346,7 @@ class EntityFieldRouterGen extends FieldRouterGenBase {
 		});
 
 	override function map(k:haxe.macro.Type, v:haxe.macro.Type)
-		return genMap("bp.directory.routing.EntityFieldRouter", k, v);
+		return genMap("bp.directory.routing.EntityFieldRouter", k, v, vCt -> macro new bp.directory.routing.Router.EntityFieldRouter<$vCt>(provider));
 
 	override function prim() {
 		return generate("bp.directory.routing.EntityFieldRouter", (name, types) -> {
@@ -356,10 +356,11 @@ class EntityFieldRouterGen extends FieldRouterGenBase {
 					super(provider);
 				}
 
+				@:produces('application/json')
 				@:get('/')
-				public function get() {
+				public function get():tink.core.Promise<String> {
 					trace('get');
-					return this.provider.fetch().map(this.provider.selector).next().next(d -> (d : Null<$ct>));
+					return this.provider.fetch().map(this.provider.selector).next().next(d -> (d : Null<$ct>)).next(d -> tink.Json.stringify(d));
 				}
 			};
 		});
