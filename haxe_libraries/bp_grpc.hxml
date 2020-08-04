@@ -1,0 +1,6 @@
+# @install: lix --silent download "gh://github.com/brave-pi/bp_grpc#8947acadf71280014f7224ba6a44ba54459e776c" into bp_grpc/0.0.0/github/8947acadf71280014f7224ba6a44ba54459e776c
+-lib tink_io
+-lib tink_json
+-lib tink_web
+-cp ${HAXE_LIBCACHE}/bp_grpc/0.0.0/github/8947acadf71280014f7224ba6a44ba54459e776c/src
+-D bp_grpc=0.0.0

@@ -1,0 +1,10 @@
+dev.hxml
+-D debug
+--library tink_unittest
+--library bp_test_utils
+-cp test
+-D analyzer-optimize
+-main RunTests
+--each
+--library hxnodejs
+-js bin/node/test.js

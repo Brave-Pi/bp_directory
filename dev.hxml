@@ -1,0 +1,4 @@
+--library tink_typegen
+--library tink_web
+--library bp_grpc
+-cp src

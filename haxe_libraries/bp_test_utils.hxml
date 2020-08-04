@@ -1,0 +1,4 @@
+# @install: lix --silent download "gh://github.com/brave-pi/bp_test_utils#34d135b1a51bba3d31506d341ff579daaa218b64" into bp_test_utils/0.0.0/github/34d135b1a51bba3d31506d341ff579daaa218b64
+-lib tink_macro
+-cp ${HAXE_LIBCACHE}/bp_test_utils/0.0.0/github/34d135b1a51bba3d31506d341ff579daaa218b64/src
+-D bp_test_utils=0.0.0
