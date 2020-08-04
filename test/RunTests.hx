@@ -15,6 +15,7 @@ using Lambda;
 using bp.test.Utils;
 using RunTests;
 using tink.CoreApi;
+using tink.io.Source;
 
 class RunTests {
 	static function main() {
@@ -42,7 +43,7 @@ typedef User = {
 		var quux:Date;
 		var corge:Array<{
 			var grault:haxe.io.Bytes;
-			var garply:Map<Float,String>;
+			var garply:Map<Float, String>;
 		}>;
 	}
 }
@@ -122,19 +123,18 @@ class Test {
 			_limit: 3,
 			_list: true
 		}).next(r -> {
-			trace(r);
-			remote.getSingle('test').roles().list({
+			trace(r.body);
+			remote.getSingle('test').roles().slice({
+				_limit: 3,
 				_list: true
 			});
 		}).next(r -> {
-			trace(r);
-			remote.anon().bar();
-		})
-		.next(r -> {
+			trace(r.body);
+			remote.getSingle('test').anon().bar().get();
+		}).next(r -> {
 			trace(r);
 			asserts.done();
-		})
-		.eager();
+		}).eager();
 		return asserts;
 	}
 }
