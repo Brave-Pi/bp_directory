@@ -273,6 +273,12 @@ class Test {
 			})
 			.next(r -> {
 				asserts.assert(true, printRequestAndPayload(r));
+				remote.map().keys().list({
+					_list:true
+				});
+			})
+			.next(r -> {
+				asserts.assert(true, printRequestAndPayload(r));
 				asserts.done();
 				Noise;
 			})

@@ -119,10 +119,6 @@ class FieldRouterGenBase extends RouterGenBase {
 
 	function getCollectionFieldRouter(name:String, ct:ComplexType)
 		return macro class $name extends bp.directory.routing.Router.RouterBase {
-			public function new(provider:bp.directory.Provider) {
-				super(provider);
-			}
-
 			@:post('/')
 			public function stream(query:bp.directory.routing.Router.StreamQuery):tink.io.Source.RealSource {
 				provider.projection.replace(1);
@@ -212,30 +208,45 @@ class FieldRouterGenBase extends RouterGenBase {
 	override function bool()
 		return prim();
 
-	function genArray(name:String, e:Type) {
+	function genArray(name:String, e:Type, ?isCollection = false) {
 		var eCt = e.toComplex();
 
 		var ret = generate(name, (name, types) -> {
-			var ret = getCollectionFieldRouter(name, eCt);
-			ret.fields = ret.fields.concat((macro class {
+			var additionalFields = if (isCollection) getCollectionFieldRouter(name, eCt).fields else [];
+			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {
 				@:sub("/$index")
 				public function get(index:Int) {
 					provider.projection.rename(name -> name + '.' + Std.string(index));
 					return new bp.directory.routing.Router.FieldRouter<$eCt>(provider);
 				}
-			}).fields);
+			};
+			ret.fields = ret.fields.concat(additionalFields);
 			ret;
 		});
 		return ret;
 	}
 
-	function genMap(name:String, k:Type, v:Type, routerGen:ComplexType->Expr) {
+	function genMap(name:String, k:Type, v:Type, routerGen:ComplexType->Expr, ?isCollection = false) {
 		var kCt = k.toComplex();
 		var vCt = v.toComplex();
 		var ret = generate(name, (name, types) -> {
-			macro class $name extends bp.directory.routing.Router.RouterBase {
+			var additionalFields = if (isCollection) getCollectionFieldRouter(name,
+				(macro(null : Map<$kCt, $vCt>)).typeof().sure().toComplex()).fields else [];
+			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {
 				public function new(provider:bp.directory.Provider) {
 					super(provider);
+				}
+
+				@:sub("/@keys")
+				public function keys() {
+					provider.projection.push("key");
+					return ${routerGen(kCt)};
+				}
+
+				@:sub("/@values")
+				public function values() {
+					provider.projection.push("value");
+					return ${routerGen(vCt)};
 				}
 
 				@:sub("/$key")
@@ -250,14 +261,17 @@ class FieldRouterGenBase extends RouterGenBase {
 					return ${routerGen(vCt)};
 				}
 			};
+			ret.fields = ret.fields.concat(additionalFields);
+			ret;
 		});
 		return ret;
 	}
 
-	function genDyn(name:String, t:Type, routerGen:ComplexType->Expr) {
+	function genDyn(name:String, t:Type, routerGen:ComplexType->Expr, ?isCollection = false) {
 		var ct = t.toComplex();
 		var ret = generate(name, (name, types) -> {
-			macro class $name extends bp.directory.routing.Router.RouterBase {
+			var additionalFields = if (isCollection) getCollectionFieldRouter(name, ct).fields else [];
+			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {
 				public function new(provider:bp.directory.Provider) {
 					super(provider);
 				}
@@ -268,6 +282,8 @@ class FieldRouterGenBase extends RouterGenBase {
 					return ${routerGen(ct)};
 				}
 			};
+			ret.fields = ret.fields.concat(additionalFields);
+			ret;
 		});
 		return ret;
 	}
@@ -282,13 +298,13 @@ class FieldRouterGen extends FieldRouterGenBase {
 	}
 
 	override function array(t:haxe.macro.Type)
-		return genArray("bp.directory.routing.FieldRouter", t);
+		return genArray("bp.directory.routing.FieldRouter", t, true);
 
 	override function map(k:haxe.macro.Type, v:haxe.macro.Type)
-		return genMap("bp.directory.routing.FieldRouter", k, v, vCt -> macro new bp.directory.routing.Router.FieldRouter<$vCt>(provider));
+		return genMap("bp.directory.routing.FieldRouter", k, v, vCt -> macro new bp.directory.routing.Router.FieldRouter<$vCt>(provider), true);
 
 	override function dyn(e:Type, ct:ComplexType):Type
-		return genDyn("bp.directory.routing.FieldRouter", e, ct -> macro new bp.directory.routing.Router.FieldRouter<$ct>(provider));
+		return genDyn("bp.directory.routing.FieldRouter", e, ct -> macro new bp.directory.routing.Router.FieldRouter<$ct>(provider), true);
 
 	override function dynAccess(e:Type):Type
 		return return genDyn("bp.directory.routing.FieldRouter", e, ct -> macro new bp.directory.routing.Router.FieldRouter<$ct>(provider));
@@ -307,8 +323,6 @@ class FieldRouterGen extends FieldRouterGenBase {
 		});
 	}
 }
-
-
 
 class EntityFieldRouterGen extends FieldRouterGenBase {
 	override function nullable(t:Type)
