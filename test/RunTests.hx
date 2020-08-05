@@ -55,6 +55,7 @@ typedef User = {
 			var grault:haxe.io.Bytes;
 			var garply:Map<Float, String>;
 		}>;
+		var nested:Map<String, Map<String, Map<String, Array<{waldo:String, plugh:Int}>>>>;
 	}
 }
 
@@ -89,12 +90,10 @@ class LoggingProvider {
 		function maxTimeMS(_)
 			return null;
 		function limit(v:Int) {
-			'limit: $v'.log();
 			this.limitted = v;
 			return null;
 		}
 		function skip(v:Int) {
-			'skip: $v'.log();
 			this.skipped = v;
 			return null;
 		}
@@ -128,7 +127,7 @@ class Logger {
 		};
 
 	public static function json(d:Dynamic)
-		return haxe.Json.stringify(d);
+		return haxe.Json.stringify(d, null, "   ");
 }
 
 @:asserts
@@ -139,13 +138,15 @@ class Test {
 	var remote:tink.web.proxy.Remote<DirectoryRouter<User>>;
 	var provider:LoggingProvider;
 	var header:tink.http.Request.IncomingRequestHeader;
+	var dataset = "foo";
+
 	function match(scope:Array<String>, callback:haxe.DynamicAccess<Dynamic>->haxe.DynamicAccess<Dynamic>->Bool)
 		return switch this.provider.data {
 			case {
 				scope: _.foreach(scope.has) => true,
 				projection: p,
 				query: q,
-				dataset: "foo"
+				dataset: _ == dataset => true
 			}:
 				callback(p, q);
 				true;
@@ -154,7 +155,7 @@ class Test {
 
 	public function create_router() {
 		asserts.assert(({
-			router = new tink.web.routing.Router<DirectoryRouter<User>>(new DirectoryRouter<User>("foo", () -> this.provider = new LoggingProvider()));
+			router = new tink.web.routing.Router<DirectoryRouter<User>>(new DirectoryRouter<User>(dataset, () -> this.provider = new LoggingProvider()));
 			var container = new LocalContainer();
 			container.run(req -> {
 				var ret = router.route(Context.ofRequest(req)).recover(tink.http.Response.OutgoingResponse.reportError);
@@ -173,8 +174,8 @@ class Test {
 	var ts = Date.now();
 
 	public function test_remote() {
-		inline function printRequestAndPayload()
-			return '${{requestHeader: '$header', providerResponse: this.provider.data}}'; // .json();
+		inline function printRequestAndPayload(r:tink.http.Response.IncomingResponse)
+			return '${({requestHeader: '$header', providerResponse: this.provider.data.json(), responseHeader: '${r.header}'})}'; // .json();
 		remote.roles()
 			.list({
 				_skip: 1,
@@ -182,7 +183,6 @@ class Test {
 				_list: true
 			})
 			.next(r -> {
-				r.body.log();
 				remote.getSingle('test').roles().slice({
 					_limit: 3,
 					_list: true
@@ -198,8 +198,8 @@ class Test {
 					trace('TEST A: $testA, TEST B: $testB');
 					asserts.assert(testB = query["_id"] == "test");
 					return testA && testB;
-				}), printRequestAndPayload());
-				r.body.log();
+				}), printRequestAndPayload(r));
+
 				remote.getSingle('test').anon().bar().get();
 			})
 			.next(r -> {
@@ -209,13 +209,12 @@ class Test {
 					var testB = false;
 					asserts.assert(testB = query["_id"] == "test");
 					return testA && testB;
-				}), printRequestAndPayload());
-				r.log();
+				}), printRequestAndPayload(r));
 
 				remote.getSingle('test').map().get(ts).get();
 			})
 			.next(r -> {
-				asserts.assert(match([], (projection, query) -> {
+				asserts.assert(match(["value"], (projection, query) -> {
 					var testA = false;
 					asserts.assert(testA = projection.drill("map/value") == 1);
 					var testB = false;
@@ -223,23 +222,36 @@ class Test {
 					var testC = false;
 					asserts.assert(testC = query.drill("map/key") == ts);
 					return testA && testB && testC;
-				}), printRequestAndPayload());
-				r.log();
+				}), printRequestAndPayload(r));
+
 				remote.getSingle('test').anon().corge().get(314).grault().get();
 			})
 			.next(r -> {
 				asserts.assert(match(["anon", "corge", "grault"],
-					(projection, query) -> projection.drill("anon/corge.314/grault") == 1 && query["_id"] == "test"));
-				r.log();
+					(projection, query) -> projection.drill("anon/corge.314/grault") == 1 && query["_id"] == "test"),
+					printRequestAndPayload(r));
+
 				remote.anon().corge().get(314).list({
 					_limit: 636,
 					_list: true
 				});
 			})
 			.next(r -> {
-				asserts.assert(match(["anon", "corge"], (projection, query) -> projection.drill("anon/corge.314") == 1), printRequestAndPayload());
+				asserts.assert(match(["anon", "corge"], (projection, query) -> projection.drill("anon/corge.314") == 1), printRequestAndPayload(r));
 				asserts.assert(provider.limitted == 636 && provider.skipped == 0);
-				r.log();
+
+				remote.anon().nested().get('path').get('to').get('result').get(15).waldo().list({
+					_list: true
+				});
+			})
+			.next(r -> {
+				asserts.assert(match(["value","waldo"], (projection, query) -> {
+					asserts.assert(projection.drill("anon/nested/value/value/value.15/waldo") == 1);
+					asserts.assert(query.drill("anon/nested/value/value/key") == "result");
+					asserts.assert(query.drill("anon/nested/value/key") == "to");
+					asserts.assert(query.drill("anon/nested/key") == "path");
+					true;
+				}), printRequestAndPayload(r));
 				Noise;
 			})
 			.next(_ -> {

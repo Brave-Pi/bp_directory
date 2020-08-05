@@ -107,8 +107,7 @@ class EntityRouterGen extends RouterGenBase {
 		return generate('bp.directory.routing.EntityRouter', (name, types) -> {
 			var ct = types[0].toComplex();
 			var additionalFields = getEntityPropertyRoutes(fields, ct -> macro new bp.directory.routing.Router.EntityFieldRouter<$ct>(provider));
-			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {
-			};
+			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {};
 			ret.fields = additionalFields.concat(ret.fields);
 			ret;
 		});
@@ -215,11 +214,10 @@ class FieldRouterGenBase extends RouterGenBase {
 
 	function genArray(name:String, e:Type) {
 		var eCt = e.toComplex();
-		
+
 		var ret = generate(name, (name, types) -> {
 			var ret = getCollectionFieldRouter(name, eCt);
 			ret.fields = ret.fields.concat((macro class {
-
 				@:sub("/$index")
 				public function get(index:Int) {
 					provider.projection.rename(name -> name + '.' + Std.string(index));
@@ -243,9 +241,10 @@ class FieldRouterGenBase extends RouterGenBase {
 				@:sub("/$key")
 				public function get(key:$kCt) {
 					provider.projection.push("value");
-					while(provider.scope.length != 0)
+					while (provider.scope.length != 0)
 						provider.query.push(provider.scope.shift());
-					
+
+					provider.scope.push('value');
 					provider.query.push('key');
 					provider.query.replace(Std.string(key));
 					return ${routerGen(vCt)};
@@ -356,7 +355,11 @@ class EntityFieldRouterGen extends FieldRouterGenBase {
 				@:get('/')
 				public function get():tink.core.Promise<String> {
 					provider.projection.replace(1);
-					return this.provider.fetch().map(this.provider.selector).next().next(d -> (d : Null<$ct>)).next(d -> tink.Json.stringify(d));
+					return this.provider.fetch()
+						.map(this.provider.selector)
+						.next()
+						.next(d -> (d : Null<$ct>))
+						.next(d -> tink.Json.stringify(d));
 				}
 			};
 		});
