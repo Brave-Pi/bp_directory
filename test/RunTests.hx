@@ -138,7 +138,7 @@ class Test {
 	var router:tink.web.routing.Router<DirectoryRouter<User>>;
 	var remote:tink.web.proxy.Remote<DirectoryRouter<User>>;
 	var provider:LoggingProvider;
-
+	var header:tink.http.Request.IncomingRequestHeader;
 	function match(scope:Array<String>, callback:haxe.DynamicAccess<Dynamic>->haxe.DynamicAccess<Dynamic>->Bool)
 		return switch this.provider.data {
 			case {
@@ -158,7 +158,7 @@ class Test {
 			var container = new LocalContainer();
 			container.run(req -> {
 				var ret = router.route(Context.ofRequest(req)).recover(tink.http.Response.OutgoingResponse.reportError);
-				trace(req.header);
+				header = req.header;
 				ret;
 			});
 			var client = new LocalContainerClient(container);
@@ -173,8 +173,8 @@ class Test {
 	var ts = Date.now();
 
 	public function test_remote() {
-		inline function providerPayload()
-			return '${this.provider.data}'; // .json();
+		inline function printRequestAndPayload()
+			return '${{requestHeader: '$header', providerResponse: this.provider.data}}'; // .json();
 		remote.roles()
 			.list({
 				_skip: 1,
@@ -198,7 +198,7 @@ class Test {
 					trace('TEST A: $testA, TEST B: $testB');
 					asserts.assert(testB = query["_id"] == "test");
 					return testA && testB;
-				}), providerPayload());
+				}), printRequestAndPayload());
 				r.body.log();
 				remote.getSingle('test').anon().bar().get();
 			})
@@ -209,7 +209,7 @@ class Test {
 					var testB = false;
 					asserts.assert(testB = query["_id"] == "test");
 					return testA && testB;
-				}), providerPayload());
+				}), printRequestAndPayload());
 				r.log();
 
 				remote.getSingle('test').map().get(ts).get();
@@ -223,7 +223,7 @@ class Test {
 					var testC = false;
 					asserts.assert(testC = query.drill("map/key") == ts);
 					return testA && testB && testC;
-				}), providerPayload());
+				}), printRequestAndPayload());
 				r.log();
 				remote.getSingle('test').anon().corge().get(314).grault().get();
 			})
@@ -237,7 +237,7 @@ class Test {
 				});
 			})
 			.next(r -> {
-				asserts.assert(match(["anon", "corge"], (projection, query) -> projection.drill("anon/corge.314") == 1), providerPayload());
+				asserts.assert(match(["anon", "corge"], (projection, query) -> projection.drill("anon/corge.314") == 1), printRequestAndPayload());
 				asserts.assert(provider.limitted == 636 && provider.skipped == 0);
 				r.log();
 				Noise;
