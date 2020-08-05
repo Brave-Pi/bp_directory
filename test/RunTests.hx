@@ -57,6 +57,8 @@ typedef User = {
 		}>;
 		var nested:Map<String, Map<String, Map<String, Array<{waldo:String, plugh:Int}>>>>;
 	}
+	var recursive:User;
+	var dyn:Dynamic<Dynamic<Dynamic<Dynamic<Array<{waldo:String, plugh:Int}>>>>>;
 }
 
 class LoggingProvider {
@@ -245,16 +247,32 @@ class Test {
 				});
 			})
 			.next(r -> {
-				asserts.assert(match(["value","waldo"], (projection, query) -> {
+				asserts.assert(match(["value", "waldo"], (projection, query) -> {
 					asserts.assert(projection.drill("anon/nested/value/value/value.15/waldo") == 1);
 					asserts.assert(query.drill("anon/nested/value/value/key") == "result");
 					asserts.assert(query.drill("anon/nested/value/key") == "to");
 					asserts.assert(query.drill("anon/nested/key") == "path");
 					true;
 				}), printRequestAndPayload(r));
-				Noise;
+				remote.recursive()
+					.recursive()
+					.recursive()
+					.recursive()
+					.recursive()
+					.anon()
+					.foo()
+					.list({
+						_list: true,
+					});
 			})
-			.next(_ -> {
+			.next(r -> {
+				asserts.assert(true, printRequestAndPayload(r));
+				remote.dyn().get("foo").get("bar").get("baz").get("qux").get(35).waldo().list({
+					_list:true
+				});
+			})
+			.next(r -> {
+				asserts.assert(true, printRequestAndPayload(r));
 				asserts.done();
 				Noise;
 			})

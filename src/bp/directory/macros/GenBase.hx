@@ -25,7 +25,7 @@ class GenBase {
   public function map(k:Type, v:Type):Type return throw 'abstract';
   public function enm(constructors:Array<EnumConstructor<Type>>, ct:ComplexType, pos:Position, gen:GenType<Type>):Type return throw 'abstract';
   public function enumAbstract(names:Array<Expr>, e:Type, ct:ComplexType, pos:Position):Type return throw 'abstract';
-  public function rescue(t:Type, pos:Position, gen:GenType<Type>):Option<Type> return throw 'abstract';
+  public function rescue(t:Type, pos:Position, gen:GenType<Type>):Option<Type> return throw 'abstract: $t';
   public function reject(t:Type):String return throw 'abstract';
   public function shouldIncludeField(c:ClassField, owner:Option<ClassType>):Bool return true;
   public function drive(type:Type, pos:Position, gen:GenType<Type>):Type return gen(type, pos);
