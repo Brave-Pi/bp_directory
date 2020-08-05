@@ -128,11 +128,11 @@ class FieldRouterGenBase extends RouterGenBase {
 			public function stream(query:bp.directory.routing.Router.StreamQuery):tink.io.Source.RealSource {
 				provider.projection.replace(1);
 				var cursor = this.provider.fetch(); // gets a cursor
+				if (query != null && query._skip != null)
+					cursor.skip(query._skip);
+				if (query != null && query._limit != null)
+					cursor.limit(query._limit);
 				return tink.streams.Stream.Generator.stream(function next(step) {
-					if (query != null && query._skip != null)
-						cursor.skip(query._skip);
-					if (query != null && query._limit != null)
-						cursor.limit(query._limit);
 					cursor.map(this.provider.selector) // map it by the selector set in the parent router
 						.next() // cursor.next - returns Promise<Dynamic>
 						.next(d -> (d : Null<$ct>)) // Promise.next, cast d, a Dynamic, to a Null<$ct>, where $ct is the type of this field
@@ -160,11 +160,11 @@ class FieldRouterGenBase extends RouterGenBase {
 			public function list(query:bp.directory.routing.Router.ListQuery):tink.io.Source.RealSource {
 				provider.projection.replace(1);
 				var cursor = this.provider.fetch(); // gets a cursor
+				if (query != null && query._skip != null)
+					cursor.skip(query._skip);
+				if (query != null && query._limit != null)
+					cursor.limit(query._limit);
 				return tink.streams.Stream.Generator.stream(function next(step) {
-					if (query != null && query._skip != null)
-						cursor.skip(query._skip);
-					if (query != null && query._limit != null)
-						cursor.limit(query._limit);
 					cursor.map(this.provider.selector) // map it by the selector set in the parent router
 						.next() // cursor.next - returns Promise<Dynamic>
 						.next(d -> (d : Null<$ct>)) // Promise.next, cast d, a Dynamic, to a Null<$ct>, where $ct is the type of this field
@@ -223,7 +223,6 @@ class FieldRouterGenBase extends RouterGenBase {
 				@:sub("/$index")
 				public function get(index:Int) {
 					provider.projection.rename(name -> name + '.' + Std.string(index));
-					provider.scope.push(Std.string(index));
 					return new bp.directory.routing.Router.FieldRouter<$eCt>(provider);
 				}
 			}).fields);
@@ -244,9 +243,9 @@ class FieldRouterGenBase extends RouterGenBase {
 				@:sub("/$key")
 				public function get(key:$kCt) {
 					provider.projection.push("value");
-					for (scope in provider.scope) {
-						provider.query.push(scope);
-					}
+					while(provider.scope.length != 0)
+						provider.query.push(provider.scope.shift());
+					
 					provider.query.push('key');
 					provider.query.replace(Std.string(key));
 					return ${routerGen(vCt)};
@@ -306,7 +305,6 @@ class EntityFieldRouterGen extends FieldRouterGenBase {
 			ret.fields = ret.fields.concat((macro class {
 				@:get('/')
 				public function slice(query:bp.directory.routing.Router.ListQuery) {
-					trace('slice');
 					provider.projection.push("$slice");
 					var skip = if (query != null && query._skip != null) query._skip else 0;
 					var limit = if (query != null && query._limit != null) query._limit else -1;
@@ -338,8 +336,7 @@ class EntityFieldRouterGen extends FieldRouterGenBase {
 				@:sub("/$index")
 				public function get(index:Int) {
 					provider.projection.rename(name -> name + '.' + Std.string(index));
-					provider.scope.push(Std.string(index));
-					return new bp.directory.routing.Router.FieldRouter<$eCt>(provider);
+					return new bp.directory.routing.Router.EntityFieldRouter<$eCt>(provider);
 				}
 			}).fields);
 			ret;
@@ -356,10 +353,9 @@ class EntityFieldRouterGen extends FieldRouterGenBase {
 					super(provider);
 				}
 
-				@:produces('application/json')
 				@:get('/')
 				public function get():tink.core.Promise<String> {
-					trace('get');
+					provider.projection.replace(1);
 					return this.provider.fetch().map(this.provider.selector).next().next(d -> (d : Null<$ct>)).next(d -> tink.Json.stringify(d));
 				}
 			};
