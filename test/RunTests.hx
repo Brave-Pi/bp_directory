@@ -216,13 +216,13 @@ class Test {
 				remote.getSingle('test').map().get(ts).get();
 			})
 			.next(r -> {
-				asserts.assert(match(["value"], (projection, query) -> {
+				asserts.assert(match(["map","1"], (projection, query) -> {
 					var testA = false;
-					asserts.assert(testA = projection.drill("map/value") == 1);
+					asserts.assert(testA = projection["map.2"] == 1);
 					var testB = false;
 					asserts.assert(testB = query["_id"] == "test");
 					var testC = false;
-					asserts.assert(testC = query.drill("map/key") == ts);
+					asserts.assert(testC = query["map.1"] == ts);
 					return testA && testB && testC;
 				}), printRequestAndPayload(r));
 
@@ -247,11 +247,11 @@ class Test {
 				});
 			})
 			.next(r -> {
-				asserts.assert(match(["value", "waldo"], (projection, query) -> {
-					asserts.assert(projection.drill("anon/nested/value/value/value.15/waldo") == 1);
-					asserts.assert(query.drill("anon/nested/value/value/key") == "result");
-					asserts.assert(query.drill("anon/nested/value/key") == "to");
-					asserts.assert(query.drill("anon/nested/key") == "path");
+				asserts.assert(match(["anon", "nested", "1", "1", "1", "waldo"], (projection, query) -> {
+					asserts.assert(projection.drill("anon/nested.2.2.2.15/waldo") == 1);
+					asserts.assert(query.drill("anon.nested.1.1.1") == "result");
+					asserts.assert(query.drill("anon.nested.1.1") == "to");
+					asserts.assert(query.drill("anon.nested.1") == "path");
 					true;
 				}), printRequestAndPayload(r));
 				remote.recursive()
@@ -266,19 +266,25 @@ class Test {
 					});
 			})
 			.next(r -> {
-				asserts.assert(true, printRequestAndPayload(r));
+				asserts.assert(r.header.statusCode == OK, printRequestAndPayload(r));
 				remote.dyn().get("foo").get("bar").get("baz").get("qux").get(35).waldo().list({
 					_list:true
 				});
 			})
 			.next(r -> {
-				asserts.assert(true, printRequestAndPayload(r));
+				asserts.assert(r.header.statusCode == OK, printRequestAndPayload(r));
 				remote.map().keys().list({
 					_list:true
 				});
 			})
 			.next(r -> {
-				asserts.assert(true, printRequestAndPayload(r));
+				asserts.assert(r.header.statusCode == OK, printRequestAndPayload(r));
+				remote.map().values().list({
+					_list:true
+				});
+			})
+			.next(r -> {
+				asserts.assert(r.header.statusCode == OK, printRequestAndPayload(r));
 				asserts.done();
 				Noise;
 			})

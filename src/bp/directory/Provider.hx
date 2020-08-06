@@ -6,8 +6,8 @@ import haxe.DynamicAccess;
 typedef Provider = {
 	var dataset:String;
 	var projection:DynamicBuilder;
-    var query:DynamicBuilder;
-    var scope:Array<String>;
+	var query:DynamicBuilder;
+	var scope:Array<String>;
 	var selector:Dynamic->Dynamic;
 	function fetch():Cursor;
 	function delete():Promise<DeleteResult>;
@@ -40,7 +40,7 @@ abstract DynamicBuilder(DynamicBuilderObject) from DynamicBuilderObject to Dynam
 
 	@:from public static function ofDyn(dyn:Dynamic):DynamicBuilder
 		return {
-			head: dyn, // (dyn : DynamicAccess<Dynamic>),   
+			head: dyn, // (dyn : DynamicAccess<Dynamic>),
 			target: dyn, // (dyn : DynamicAccess<Dynamic>),
 			trail: []
 		};
@@ -54,6 +54,17 @@ abstract DynamicBuilder(DynamicBuilderObject) from DynamicBuilderObject to Dynam
 		this.head = (this.head : DynamicAccess<Dynamic>)[key];
 	}
 
+	public function previousUnnested() {
+		var trail = this.trail.copy();
+		trail.reverse();
+		for (pair in trail) {
+			if (pair.key.indexOf('.') == -1) {
+				return pair.value;
+			}
+        }
+        return this.target;
+	}
+
 	public function print() {
 		trace(haxe.Json.stringify(this.target, null, "   "));
 	}
@@ -64,20 +75,22 @@ abstract DynamicBuilder(DynamicBuilderObject) from DynamicBuilderObject to Dynam
 
 	public function setHead(h:Dynamic) {
 		this.head = h;
-	}   
+	}
 
 	public function replace(v:Dynamic) {
 		var last = this.trail.pop();
-        this.head = last.value;
-        (this.head : DynamicAccess<Dynamic>)[last.key] = v; 
+		this.head = last.value;
+		this.trail.push({key: last.key, value: this.head});
+		(this.head : DynamicAccess<Dynamic>)[last.key] = v;
 		return last;
 	}
 
 	public function rename(newName:String->String) {
-		var lastHead = this.trail.pop();
+		var last = this.trail.pop();
 		var self:DynamicBuilder = this;
-		this.head = lastHead.value;
-		self.push(newName(lastHead.key), (this.head : DynamicAccess<Dynamic>)[lastHead.key]);
-		return lastHead.value.remove(lastHead.key);
+		this.head = last.value;
+		this.trail.push({key: last.key, value: this.head});
+		self.push(newName(last.key), (this.head : DynamicAccess<Dynamic>)[last.key]);
+		return last.value.remove(last.key);
 	}
 }

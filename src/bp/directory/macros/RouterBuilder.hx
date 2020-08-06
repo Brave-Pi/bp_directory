@@ -239,24 +239,21 @@ class FieldRouterGenBase extends RouterGenBase {
 
 				@:sub("/@keys")
 				public function keys() {
-					provider.projection.push("key");
+					provider.projection.rename(name -> name + '.1');
 					return ${routerGen(kCt)};
 				}
 
 				@:sub("/@values")
 				public function values() {
-					provider.projection.push("value");
+					provider.projection.rename(name -> name + '.2');
 					return ${routerGen(vCt)};
 				}
 
 				@:sub("/$key")
 				public function get(key:$kCt) {
-					provider.projection.push("value");
-					while (provider.scope.length != 0)
-						provider.query.push(provider.scope.shift());
-
-					provider.scope.push('value');
-					provider.query.push('key');
+					provider.projection.rename(name -> name + '.2');
+					provider.scope.push('1');
+					provider.query.push(provider.scope.join('.'));
 					provider.query.replace(Std.string(key));
 					return ${routerGen(vCt)};
 				}
