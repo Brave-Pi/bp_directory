@@ -8,6 +8,6 @@ Without further changes the structure is following:
  * `build.hxml`: Haxe command line file used to build the project
  * `README.md`: This file
 
-# BP gOData
+# BP Directory
 
-A macro-based OData library, with some gRPC inspired streams.
+A macro-based data access layer as a REST API, with some gRPC inspired streams.
