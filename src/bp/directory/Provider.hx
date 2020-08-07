@@ -7,7 +7,7 @@ typedef Provider = {
 	var dataset:String;
 	var projection:DynamicBuilder;
 	var query:DynamicBuilder;
-	var scope:Array<String>;
+	var scope:Array<String>; // used to track the scope of custom projections/queries
 	var selector:Dynamic->Dynamic;
 	function fetch():Cursor;
 	function delete():Promise<DeleteResult>;

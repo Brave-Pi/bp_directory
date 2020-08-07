@@ -295,6 +295,7 @@ class FieldRouterGenBase extends RouterGenBase {
 				@:sub("/$property")
 				public function get(property:String) {
 					provider.projection.push(property);
+					provider.scope.push(property);
 					var selectorPrevious = provider.selector;
 					provider.selector = v -> (selectorPrevious(v) : haxe.DynamicAccess<Dynamic>)[property];
 					return ${routerGen(ct)};
