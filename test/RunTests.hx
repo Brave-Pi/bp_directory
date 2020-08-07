@@ -228,7 +228,7 @@ class Test {
 				remote.getSingle('test').map().get(ts).get();
 			})
 			.next(r -> {
-				asserts.assert(match(["map", "1"], (projection, query) -> {
+				asserts.assert(match(["map", "2"], (projection, query) -> {
 					var testA = false;
 					asserts.assert(testA = projection["map.2"] == 1);
 					var testB = false;
@@ -259,10 +259,10 @@ class Test {
 				});
 			})
 			.next(r -> {
-				asserts.assert(match(["anon", "nested", "1", "1", "1", "nested.2.2.2.15", "waldo"], (projection, query) -> {
+				asserts.assert(match(["anon", "nested", "2", "2", "2", "nested.2.2.2.15", "waldo"], (projection, query) -> {
 					asserts.assert(projection.drill("anon/nested.2.2.2.15/waldo") == 1);
-					asserts.assert(query.drill("anon.nested.1.1.1") == "result");
-					asserts.assert(query.drill("anon.nested.1.1") == "to");
+					asserts.assert(query.drill("anon.nested.2.2.1") == "result");
+					asserts.assert(query.drill("anon.nested.2.1") == "to");
 					asserts.assert(query.drill("anon.nested.1") == "path");
 					true;
 				}), printRequestAndPayload(r));

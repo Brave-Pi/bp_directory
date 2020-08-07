@@ -273,8 +273,8 @@ class FieldRouterGenBase extends RouterGenBase {
 				@:sub("/$key")
 				public function get(key:$kCt) {
 					provider.projection.rename(name -> name + '.2');
-					provider.scope.push('1');
-					provider.query.push(provider.scope.join('.'));
+					provider.query.push(provider.scope.concat(['1']).join('.'));
+					provider.scope.push('2');
 					provider.query.replace(Std.string(key));
 					return ${routerGen(vCt)};
 				}
