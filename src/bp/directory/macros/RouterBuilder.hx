@@ -56,7 +56,8 @@ class RouterGenBase extends GenBase {
 						};
 						provider.projection.push($v{name});
 						provider.scope.push($v{name});
-						provider.selector = r -> r.$name;
+						var selectorPrevious = provider.selector;
+						provider.selector = v -> selectorPrevious(v).$name;
 						return ${routerGen(fCt)};
 					}
 				}).fields;
@@ -122,14 +123,13 @@ class FieldRouterGenBase extends RouterGenBase {
 			@:post('/')
 			public function stream(query:bp.directory.routing.Router.StreamQuery):tink.io.Source.RealSource {
 				provider.projection.replace(1);
-				var cursor = this.provider.fetch(); // gets a cursor
+				var cursor = this.provider.fetch().map(this.provider.selector); // get a cursor and  map it by the selector set in the parent router
 				if (query != null && query._skip != null)
 					cursor.skip(query._skip);
 				if (query != null && query._limit != null)
 					cursor.limit(query._limit);
 				return tink.streams.Stream.Generator.stream(function next(step) {
-					cursor.map(this.provider.selector) // map it by the selector set in the parent router
-						.next() // cursor.next - returns Promise<Dynamic>
+					cursor.next() // cursor.next - returns Promise<Dynamic>
 						.next(d -> (d : Null<$ct>)) // Promise.next, cast d, a Dynamic, to a Null<$ct>, where $ct is the type of this field
 						.next(d -> {
 							if (d == null) {
@@ -142,8 +142,9 @@ class FieldRouterGenBase extends RouterGenBase {
 						.next(d -> if (d != null) (tink.Json.stringify(d) : String) else null)
 						.next(d -> if (d != null) tink.Chunk.ofString(d) else null)
 						.next(d -> {
-							if (d != null)
+							if (d != null) {
 								step(tink.streams.Stream.Step.Link(d, tink.streams.Stream.Generator.stream(next)));
+							}
 							tink.core.Noise;
 						})
 						.eager(); // promises in tink are lazy, always remember they must be handled,
@@ -154,31 +155,45 @@ class FieldRouterGenBase extends RouterGenBase {
 			@:get('/')
 			public function list(query:bp.directory.routing.Router.ListQuery):tink.io.Source.RealSource {
 				provider.projection.replace(1);
-				var cursor = this.provider.fetch(); // gets a cursor
+				var cursor = this.provider.fetch().map(this.provider.selector); // get a cursor and  map it by the selector set in the parent router
 				if (query != null && query._skip != null)
 					cursor.skip(query._skip);
 				if (query != null && query._limit != null)
 					cursor.limit(query._limit);
+				var open = false;
+				var first = true;
+				var depleted = false;
 				return tink.streams.Stream.Generator.stream(function next(step) {
-					cursor.map(this.provider.selector) // map it by the selector set in the parent router
-						.next() // cursor.next - returns Promise<Dynamic>
-						.next(d -> (d : Null<$ct>)) // Promise.next, cast d, a Dynamic, to a Null<$ct>, where $ct is the type of this field
-						.next(d -> {
-							if (d == null) {
-								// if d is null, the cursor is exhausted
-								step(tink.streams.Stream.Step.End);
-								null;
-							} else
+					if (depleted)
+						step(tink.streams.Stream.Step.End);
+					else if (!open) {
+						open = true;
+						step(tink.streams.Stream.Step.Link(tink.Chunk.ofString("["), tink.streams.Stream.Generator.stream(next)));
+					} else
+						cursor.next() // cursor.next - returns Promise<Dynamic>
+							.next(d -> (d : Null<$ct>)) // Promise.next, cast d, a Dynamic, to a Null<$ct>, where $ct is the type of this field
+							.next(d -> {
+								if (d == null) {
+									// if d is null, the cursor is exhausted
+									depleted = true;
+									step(tink.streams.Stream.Step.Link(tink.Chunk.ofString("]"), tink.streams.Stream.Generator.stream(next)));
+									null;
+								} else
+									d;
+							})
+							.next(d -> if (d != null) (tink.Json.stringify(d) : String) else null)
+							.next(d -> if (d != null && !first) "," + d else {
+								first = false;
 								d;
-						})
-						.next(d -> if (d != null) (tink.Json.stringify(d) : String) else null)
-						.next(d -> if (d != null) tink.Chunk.ofString(d) else null)
-						.next(d -> {
-							if (d != null)
-								step(tink.streams.Stream.Step.Link(d, tink.streams.Stream.Generator.stream(next)));
-							tink.core.Noise;
-						})
-						.eager(); // promises in tink are lazy, always remember they must be handled,
+							})
+							.next(d -> if (d != null) tink.Chunk.ofString(d) else null)
+							.next(d -> {
+								if (d != null) {
+									step(tink.streams.Stream.Step.Link(d, tink.streams.Stream.Generator.stream(next)));
+								}
+								tink.core.Noise;
+							})
+							.eager(); // promises in tink are lazy, always remember they must be handled,
 					// here we don't need a a handler, so we just run it eagerly
 				});
 			}
@@ -216,7 +231,13 @@ class FieldRouterGenBase extends RouterGenBase {
 			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {
 				@:sub("/$index")
 				public function get(index:Int) {
-					provider.projection.rename(name -> name + '.' + Std.string(index));
+					provider.projection.rename(name -> {
+						var newName = name + '.' + Std.string(index);
+						var lastScope = provider.scope[provider.scope.length - 1];
+						if (lastScope != null)
+							provider.scope[provider.scope.length - 1] = newName;
+						newName;
+					});
 					return new bp.directory.routing.Router.FieldRouter<$eCt>(provider);
 				}
 			};
@@ -276,6 +297,8 @@ class FieldRouterGenBase extends RouterGenBase {
 				@:sub("/$property")
 				public function get(property:String) {
 					provider.projection.push(property);
+					var selectorPrevious = provider.selector;
+					provider.selector = v -> (selectorPrevious(v) : haxe.DynamicAccess<Dynamic>)[property];
 					return ${routerGen(ct)};
 				}
 			};

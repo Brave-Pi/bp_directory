@@ -16,7 +16,7 @@ typedef Provider = {
 }
 
 typedef Cursor = {
-	> Iterator<Promise<Dynamic>>,
+	function next():Promise<Dynamic>;
 	function maxTimeMS(ms:Float):Cursor;
 	function limit(count:Int):Cursor;
 	function skip(count:Int):Cursor;
