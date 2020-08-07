@@ -251,7 +251,7 @@ class Test {
 				});
 			})
 			.next(r -> {
-				asserts.assert(match(["anon", "corge.314"], (projection, query) -> projection.drill("anon/corge.314") == 1), printRequestAndPayload(r));
+				asserts.assert(match(["anon", "corge", "314"], (projection, query) -> projection.drill("anon/corge.314") == 1), printRequestAndPayload(r));
 				asserts.assert(provider.limitted == 636 && provider.skipped == 0);
 
 				remote.anon().nested().get('path').get('to').get('result').get(15).waldo().list({
@@ -259,7 +259,7 @@ class Test {
 				});
 			})
 			.next(r -> {
-				asserts.assert(match(["anon", "nested", "2", "2", "2", "nested.2.2.2.15", "waldo"], (projection, query) -> {
+				asserts.assert(match(["anon", "nested", "2", "2", "2", "15", "waldo"], (projection, query) -> {
 					asserts.assert(projection.drill("anon/nested.2.2.2.15/waldo") == 1);
 					asserts.assert(query.drill("anon.nested.2.2.1") == "result");
 					asserts.assert(query.drill("anon.nested.2.1") == "to");

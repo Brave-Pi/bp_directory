@@ -233,11 +233,9 @@ class FieldRouterGenBase extends RouterGenBase {
 				public function get(index:Int) {
 					provider.projection.rename(name -> {
 						var newName = name + '.' + Std.string(index);
-						var lastScope = provider.scope[provider.scope.length - 1];
-						if (lastScope != null)
-							provider.scope[provider.scope.length - 1] = newName;
 						newName;
 					});
+					provider.scope.push(Std.string(index));
 					return new bp.directory.routing.Router.FieldRouter<$eCt>(provider);
 				}
 			};
