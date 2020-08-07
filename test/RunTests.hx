@@ -11,6 +11,9 @@ import tink.web.routing.Context;
 import tink.web.proxy.Remote;
 import tink.http.clients.*;
 import tink.url.Host;
+import bp.grpc.GrpcStreamWriter;
+import tink.streams.*;
+import bp.grpc.GrpcStreamParser;
 
 using Lambda;
 using bp.test.Utils;
@@ -307,6 +310,7 @@ class Test {
 	var wildduckRouter:tink.web.routing.Router<DirectoryRouter<WildDuckUser>>;
 	var wildduckRemote:tink.web.proxy.Remote<DirectoryRouter<WildDuckUser>>;
 
+	@:timeout(10000)
 	public function test_mongo() {
 		var promise:Promise<bp.Mongo.MongoClient> = bp.Mongo.connect(js.node.Fs.readFileSync('./secrets/cnxStr').toString());
 		promise.next(client -> {
@@ -334,17 +338,52 @@ class Test {
 			});
 		}).next(r -> {
 			r.body.all()
-			.next(body -> {
-				trace('got $body');
-				body;
-			})
-			.next(d -> (tink.Json.parse(d) : Array<String>)).next(results -> {
-				asserts.assert(results != null);
-				asserts.assert(results.length == 10);
-			})
-			.recover(e -> {
-				
-				asserts.assert(e == null);
+				.next(body -> {
+					trace('got $body');
+					body;
+				})
+				.next(d -> (tink.Json.parse(d) : Array<String>))
+				.next(results -> {
+					asserts.assert(results != null);
+					asserts.assert(results.length == 10);
+				})
+				.recover(e -> {
+					asserts.assert(e == null);
+				})
+				.next(_ -> {
+					var writer:GrpcWriter<Bool> = new GrpcStreamWriter<Bool>();
+					wildduckRemote.username().stream({
+						_stream: true,
+						_limit: 10
+					}, writer).next((res:tink.http.Response.IncomingResponse) -> {
+						new tink.core.Pair(res, cast writer);
+					});
+				});
+		}).next(pair -> {
+			var res = pair.a;
+			var writer = pair.b;
+			var reader:GrpcReader<String> = new bp.grpc.GrpcStreamParser<String>(res.body);
+			var readStream:RealStream<String> = reader;
+			var counter = 0;
+			var usernames = [];
+			writer.write(true);
+			readStream.forEach(username -> {
+				usernames.push(username);
+				if (++counter > 9) {
+					asserts.assert(usernames.length == 10);
+					tink.streams.Stream.Handled.Finish;
+				} else {
+					asserts.assert(usernames.length == counter);
+					trace('Waiting 500 ms...');
+					Future.delay(500, () -> {
+						trace('...writing');
+						writer.write(true);
+					});
+					tink.streams.Stream.Handled.Resume;
+				}
+			}).next(_ -> {
+				asserts.assert(usernames.length == 10, 'Should have 10 usernames: $usernames');
+				Noise;
 			});
 		}).next(r -> {
 			asserts.done();

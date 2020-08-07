@@ -120,37 +120,31 @@ class FieldRouterGenBase extends RouterGenBase {
 
 	function getCollectionFieldRouter(name:String, ct:ComplexType)
 		return macro class $name extends bp.directory.routing.Router.RouterBase {
+			#if bp_grpc
 			@:post('/')
-			public function stream(query:bp.directory.routing.Router.StreamQuery):tink.io.Source.RealSource {
+			public function stream(query:bp.directory.routing.Router.StreamQuery, body:tink.io.Source.RealSource):tink.io.Source.RealSource {
 				provider.projection.replace(1);
 				var cursor = this.provider.fetch().map(this.provider.selector); // get a cursor and  map it by the selector set in the parent router
 				if (query != null && query._skip != null)
 					cursor.skip(query._skip);
 				if (query != null && query._limit != null)
 					cursor.limit(query._limit);
-				return tink.streams.Stream.Generator.stream(function next(step) {
-					cursor.next() // cursor.next - returns Promise<Dynamic>
-						.next(d -> (d : Null<$ct>)) // Promise.next, cast d, a Dynamic, to a Null<$ct>, where $ct is the type of this field
-						.next(d -> {
-							if (d == null) {
-								// if d is null, the cursor is exhausted
-								step(tink.streams.Stream.Step.End);
-								null;
-							} else
-								d;
-						})
-						.next(d -> if (d != null) (tink.Json.stringify(d) : String) else null)
-						.next(d -> if (d != null) tink.Chunk.ofString(d) else null)
-						.next(d -> {
-							if (d != null) {
-								step(tink.streams.Stream.Step.Link(d, tink.streams.Stream.Generator.stream(next)));
-							}
+				var reader = new bp.grpc.GrpcStreamParser<Bool>(body).toStream();
+				var writer:bp.grpc.GrpcStreamWriter.GrpcWriter<$ct> = new bp.grpc.GrpcStreamWriter<$ct>();
+				reader.forEach(req -> {
+					if (req) {
+						cursor.next().next(d -> {
+							writer.write(d);
 							tink.core.Noise;
-						})
-						.eager(); // promises in tink are lazy, always remember they must be handled,
-					// here we don't need a a handler, so we just run it eagerly
+						}).map(_ -> tink.streams.Stream.Handled.Resume);
+					} else
+						tink.streams.Stream.Handled.Finish;
+				}).handle(_ -> {
+					writer.end();
 				});
+				return writer;
 			}
+			#end
 
 			@:get('/')
 			public function list(query:bp.directory.routing.Router.ListQuery):tink.io.Source.RealSource {
