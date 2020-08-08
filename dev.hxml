@@ -2,4 +2,6 @@
 --library tink_web
 --library bp_grpc
 --library bp_mongodb
+--library hscript
+--library bp_hquery
 -cp src

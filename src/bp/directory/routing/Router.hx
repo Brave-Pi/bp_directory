@@ -15,7 +15,6 @@ class FieldRouter<T> {
 	public function new() {}
 }
 
-
 @:genericBuild(bp.directory.macros.RouterBuilder.EntityFieldRouterBuilder.apply())
 class EntityFieldRouter<T> {
 	public function new() {}
@@ -29,23 +28,14 @@ class RouterBase {
 	}
 }
 
-typedef GetQueryBase = {
-    // @:json var _select:Dynamic;
-    // @:json var _where:Dynamic;
-    @:optional
-    var _skip:Int;
-    @:optional
-    var _limit:Int;
+typedef ReadParams = {
+	@:optional var _select:DynamicAccess<Int>;
+	@:optional var _where:String;
+	@:optional
+	var _skip:Int;
+	@:optional
+	var _limit:Int;
 }
 
-typedef StreamQuery = {
-    >GetQueryBase,
-    @:optional
-    var _stream:Bool;
-}
-
-typedef ListQuery = {
-    >GetQueryBase,
-    @:optional
-    var _list:Bool;
-}
+typedef StreamQuery = ReadParams;
+typedef ListQuery = ReadParams;

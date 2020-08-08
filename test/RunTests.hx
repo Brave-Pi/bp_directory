@@ -70,12 +70,12 @@ typedef User = {
 }
 
 typedef WildDuckUser = {
-	username:String,
-	name:String,
-	password:String,
-	address:String,
-	storageUsed:Int,
-	created:Date
+	@:optional var username:String;
+	@:optional var name:String;
+	@:optional var password:String;
+	@:optional var address:String;
+	@:optional var storageUsed:Int;
+	@:optional var created:Date;
 }
 
 class LoggingProvider {
@@ -88,6 +88,7 @@ class LoggingProvider {
 	public var selector = v -> v;
 	public var skipped = 0;
 	public var limitted = 0;
+	public var queryEngine = null;
 	public var data:{
 		scope:Array<String>,
 		projection:Dynamic,
@@ -198,12 +199,10 @@ class Test {
 			.list({
 				_skip: 1,
 				_limit: 3,
-				_list: true
 			})
 			.next(r -> {
 				remote.getSingle('test').roles().slice({
 					_limit: 3,
-					_list: true
 				});
 			})
 			.next(r -> {
@@ -250,16 +249,13 @@ class Test {
 
 				remote.anon().corge().get(314).list({
 					_limit: 636,
-					_list: true
 				});
 			})
 			.next(r -> {
 				asserts.assert(match(["anon", "corge", "314"], (projection, query) -> projection.drill("anon/corge.314") == 1), printRequestAndPayload(r));
 				asserts.assert(provider.limitted == 636 && provider.skipped == 0);
 
-				remote.anon().nested().get('path').get('to').get('result').get(15).waldo().list({
-					_list: true
-				});
+				remote.anon().nested().get('path').get('to').get('result').get(15).waldo().list({});
 			})
 			.next(r -> {
 				asserts.assert(match(["anon", "nested", "2", "2", "2", "15", "waldo"], (projection, query) -> {
@@ -276,27 +272,19 @@ class Test {
 					.recursive()
 					.anon()
 					.foo()
-					.list({
-						_list: true,
-					});
+					.list({});
 			})
 			.next(r -> {
 				asserts.assert(r.header.statusCode == OK, printRequestAndPayload(r));
-				remote.dyn().get("foo").get("bar").get("baz").get("qux").get(35).waldo().list({
-					_list: true
-				});
+				remote.dyn().get("foo").get("bar").get("baz").get("qux").get(35).waldo().list({});
 			})
 			.next(r -> {
 				asserts.assert(r.header.statusCode == OK, printRequestAndPayload(r));
-				remote.map().keys().list({
-					_list: true
-				});
+				remote.map().keys().list({});
 			})
 			.next(r -> {
 				asserts.assert(r.header.statusCode == OK, printRequestAndPayload(r));
-				remote.map().values().list({
-					_list: true
-				});
+				remote.map().values().list({});
 			})
 			.next(r -> {
 				asserts.assert(r.header.statusCode == OK, printRequestAndPayload(r));
@@ -319,75 +307,106 @@ class Test {
 			var container = new LocalContainer();
 			container.run(req -> {
 				trace(req);
-				var ret = wildduckRouter.route(Context.ofRequest(req)).recover(tink.http.Response.OutgoingResponse.reportError);
+				var ret = wildduckRouter.route(Context.ofRequest(req)).recover(e -> {
+					var ret = tink.http.Response.OutgoingResponse.reportError(e);
+					trace('ERR: $e');
+					ret;
+				});
 				header = req.header;
 				ret.next(ret -> {
-					trace("sending response");
-					trace(ret);
 					Noise;
 				}).eager();
 				ret;
 			});
 			var client = new LocalContainerClient(container);
 			wildduckRemote = new Remote<DirectoryRouter<WildDuckUser>>(client, new RemoteEndpoint(new Host('brave-pi.io', 80)));
-		}).next(_ -> {
-			trace("Remote setup");
-			wildduckRemote.username().list({
-				_list: true,
-				_limit: 10
-			});
-		}).next(r -> {
-			r.body.all()
-				.next(body -> {
-					trace('got $body');
-					body;
-				})
-				.next(d -> (tink.Json.parse(d) : Array<String>))
-				.next(results -> {
-					asserts.assert(results != null);
-					asserts.assert(results.length == 10);
-				})
-				.recover(e -> {
-					asserts.assert(e == null);
-				})
-				.next(_ -> {
+		})
+			.next(_ -> {
+				trace("Remote setup");
+				wildduckRemote.username().list({
+					_limit: 10
+				});
+			})
+			.next(r -> {
+				r.body.all()
+					.next(body -> {
+						trace('got $body');
+						body;
+					})
+					.next(d -> (tink.Json.parse(d) : Array<String>))
+					.next(results -> {
+						asserts.assert(results != null);
+						asserts.assert(results.length == 10);
+					})
+					.recover(e -> {
+						asserts.assert(e == null);
+					})
+					.next(_ -> {
+						var writer:GrpcWriter<Bool> = new GrpcStreamWriter<Bool>();
+						wildduckRemote.username().stream({
+							_limit: 10
+						}, writer).next((res:tink.http.Response.IncomingResponse) -> {
+							new tink.core.Pair(res, cast writer);
+						});
+					});
+			})
+			.next(pair -> {
+				var res = pair.a;
+				var writer = pair.b;
+				var reader:GrpcReader<String> = new bp.grpc.GrpcStreamParser<String>(res.body);
+				var readStream:RealStream<String> = reader;
+				var counter = 0;
+				var usernames = [];
+				writer.write(true);
+				readStream.forEach(username -> {
+					usernames.push(username);
+					if (++counter > 9) {
+						asserts.assert(usernames.length == 10);
+						tink.streams.Stream.Handled.Finish;
+					} else {
+						asserts.assert(usernames.length == counter);
+						trace('Waiting 50 ms...');
+						Future.delay(50, () -> {
+							trace('...writing');
+							writer.write(true);
+						});
+						tink.streams.Stream.Handled.Resume;
+					}
+				}).next(_ -> {
+					asserts.assert(usernames.length == 10, 'Should have 10 usernames: $usernames');
 					var writer:GrpcWriter<Bool> = new GrpcStreamWriter<Bool>();
-					wildduckRemote.username().stream({
-						_stream: true,
-						_limit: 10
+					wildduckRemote.stream({
+						_limit: 10,
+						_where: "name != null", // hquery expression
+						_select: {
+							username: 1,
+							name: 1
+						}
 					}, writer).next((res:tink.http.Response.IncomingResponse) -> {
 						new tink.core.Pair(res, cast writer);
 					});
 				});
-		}).next(pair -> {
-			var res = pair.a;
-			var writer = pair.b;
-			var reader:GrpcReader<String> = new bp.grpc.GrpcStreamParser<String>(res.body);
-			var readStream:RealStream<String> = reader;
-			var counter = 0;
-			var usernames = [];
-			writer.write(true);
-			readStream.forEach(username -> {
-				usernames.push(username);
-				if (++counter > 9) {
-					asserts.assert(usernames.length == 10);
-					tink.streams.Stream.Handled.Finish;
-				} else {
-					asserts.assert(usernames.length == counter);
-					trace('Waiting 500 ms...');
-					Future.delay(500, () -> {
-						trace('...writing');
+			})
+			.next(pair -> {
+				var res = pair.a;
+				var writer = pair.b;
+				var _reader:GrpcReader<{name:String}> = new bp.grpc.GrpcStreamParser<{name:String}>(res.body);
+				var reader:RealStream<{name:String}> = _reader;
+				writer.write(true);
+				reader.forEach(incoming -> {
+					if (incoming == null) {
+						tink.streams.Stream.Handled.Finish;
+					} else {
+						asserts.assert(incoming.name != null, '${Std.string(incoming)} has a name');
 						writer.write(true);
-					});
-					tink.streams.Stream.Handled.Resume;
-				}
-			}).next(_ -> {
-				asserts.assert(usernames.length == 10, 'Should have 10 usernames: $usernames');
-				Noise;
-			});
-		}).next(r -> {
-			asserts.done();
-		}).eager();
+						tink.streams.Stream.Handled.Resume;
+					}
+				});
+			})
+			.next(r -> {
+				asserts.done();
+			})
+			.eager();
 		return asserts;
 	}
 }

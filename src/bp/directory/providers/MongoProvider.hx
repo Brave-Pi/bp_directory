@@ -3,8 +3,10 @@ package bp.directory.providers;
 import bp.Mongo;
 
 class MongoProvider extends ProviderBase {
+
 	public function new(client) {
-		this.client = client;
+        this.client = client;
+        this.queryEngine = new bp.hquery.Engine();
 	}
 
 	function setup()

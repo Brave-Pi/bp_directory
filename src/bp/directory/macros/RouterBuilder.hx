@@ -38,93 +38,29 @@ class EntityFieldRouterBuilder {
 }
 
 class RouterGenBase extends GenBase {
-	function getEntityPropertyRoutes(fields:Array<FieldInfo<Type>>, routerGen:ComplexType->Expr, ?useFactory = false)
-		return [
-			for (field in fields) {
-				var name = field.name;
-				var path = '/$name'.toExpr();
-				var fCt = field.type.toComplex();
-				(macro class {
-					// Endpoints to list/update only single field, of collection etc..
-					@:sub($path)
-					public function $name() {
-						${
-							if (useFactory)
-								macro var provider = providerFactory()
-							else
-								macro null
-						};
-						provider.projection.push($v{name});
-						provider.scope.push($v{name});
-						var selectorPrevious = provider.selector;
-						provider.selector = v -> selectorPrevious(v).$name;
-						return ${routerGen(fCt)};
-					}
-				}).fields;
-			}
-		].fold((current, result : Array<Field>) -> {
-			return result.concat(current);
-		}, []);
-}
-
-class DirectoryRouterGen extends RouterGenBase {
-	override function anon(fields:Array<FieldInfo<Type>>, ct:ComplexType):Type {
-		return generate('bp.directory.routing.DirectoryRouter', (name, types) -> {
-			var ct = types[0].toComplex();
-			var additionalFields = getEntityPropertyRoutes(fields, ct -> macro new bp.directory.routing.Router.FieldRouter<$ct>(provider), true);
-
-			var ret = macro class $name {
-				var providerFactory:Void->bp.directory.Provider;
-
-				public function new(dataset:String, providerFactory:Void->bp.directory.Provider) {
-					this.providerFactory = () -> {
-						var provider = providerFactory();
-						provider.dataset = dataset;
-						provider;
-					};
-				}
-
-				// endpoint for single entity
-
-				@:sub("/$id")
-				public function getSingle(id:String) {
-					var provider = providerFactory();
-					provider.query.head["_id"] = id;
-					return new bp.directory.routing.Router.EntityRouter<$ct>(provider);
-				}
-			};
-
-			ret.fields = additionalFields.concat(ret.fields);
-			ret;
-		});
-	}
-}
-
-class EntityRouterGen extends RouterGenBase {
-	override function nullable(t:Type)
-		return new EntityRouterGen().run(t);
-
-	override function anon(fields:Array<FieldInfo<Type>>, ct:ComplexType):Type
-		return generate('bp.directory.routing.EntityRouter', (name, types) -> {
-			var ct = types[0].toComplex();
-			var additionalFields = getEntityPropertyRoutes(fields, ct -> macro new bp.directory.routing.Router.EntityFieldRouter<$ct>(provider));
-			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {};
-			ret.fields = additionalFields.concat(ret.fields);
-			ret;
-		});
-}
-
-class FieldRouterGenBase extends RouterGenBase {
-	function prim():Type
-		throw 'abstract';
-
-	function getCollectionFieldRouter(name:String, ct:ComplexType)
+	function getRouterBase(name:String, ct:ComplexType, ?useFactory = false)
 		return macro class $name extends bp.directory.routing.Router.RouterBase {
 			#if bp_grpc
-			@:post('/')
-			public function stream(query:bp.directory.routing.Router.StreamQuery, body:tink.io.Source.RealSource):tink.io.Source.RealSource {
-				provider.projection.replace(1);
-				var cursor = this.provider.fetch().map(this.provider.selector); // get a cursor and  map it by the selector set in the parent router
+			@:post("/@stream")
+			public function stream(?query:bp.directory.routing.Router.StreamQuery, body:tink.io.Source.RealSource):tink.io.Source.RealSource {
+				${
+					if (useFactory)
+						macro var provider = providerFactory()
+					else
+						macro null
+				};
+				if (query == null)
+					query = {};
+
+				if (query._select == null)
+					provider.projection.replace(1);
+				else
+					provider.projection.replace(query._select);
+				if (query._where != null && provider.queryEngine != null) {
+					provider.query.target["$expr"] = provider.queryEngine.parse(query._where);
+				}
+
+				var cursor = provider.fetch().map(provider.selector); // get a cursor and  map it by the selector set in the parent router
 				if (query != null && query._skip != null)
 					cursor.skip(query._skip);
 				if (query != null && query._limit != null)
@@ -134,11 +70,16 @@ class FieldRouterGenBase extends RouterGenBase {
 				reader.forEach(req -> {
 					if (req) {
 						cursor.next().next(d -> {
-							writer.write(d);
-							tink.core.Noise;
-						}).map(_ -> tink.streams.Stream.Handled.Resume);
-					} else
+							if (d != null)
+								writer.write(d);
+							else
+								writer.end();
+							d;
+						}).map(d -> if (d != null) tink.streams.Stream.Handled.Resume else tink.streams.Stream.Handled.Finish);
+					} else {
+						writer.end();
 						tink.streams.Stream.Handled.Finish;
+					}
 				}).handle(_ -> {
 					writer.end();
 				});
@@ -146,10 +87,24 @@ class FieldRouterGenBase extends RouterGenBase {
 			}
 			#end
 
-			@:get('/')
-			public function list(query:bp.directory.routing.Router.ListQuery):tink.io.Source.RealSource {
-				provider.projection.replace(1);
-				var cursor = this.provider.fetch().map(this.provider.selector); // get a cursor and  map it by the selector set in the parent router
+			@:get("/@list")
+			public function list(?query:bp.directory.routing.Router.ListQuery):tink.io.Source.RealSource {
+				${
+					if (useFactory)
+						macro var provider = providerFactory()
+					else
+						macro null
+				};
+				if (query == null)
+					query = {};
+				if (query._select == null)
+					provider.projection.replace(1);
+				else
+					provider.projection.replace(query._select);
+				if (query._where != null && provider.queryEngine != null) {
+					provider.query.target["$expr"] = provider.queryEngine.parse(query._where);
+				}
+				var cursor = provider.fetch().map(provider.selector); // get a cursor and  map it by the selector set in the parent router
 				if (query != null && query._skip != null)
 					cursor.skip(query._skip);
 				if (query != null && query._limit != null)
@@ -193,8 +148,91 @@ class FieldRouterGenBase extends RouterGenBase {
 			}
 		};
 
+	function getEntityPropertyRoutes(fields:Array<FieldInfo<Type>>, routerGen:ComplexType->Expr, ?useFactory = false)
+		return [
+			for (field in fields) {
+				var name = field.name;
+				var path = '/$name'.toExpr();
+				var fCt = field.type.toComplex();
+				var ret = (macro class {
+					// Endpoints to list/update only single field, of collection etc..
+					@:sub($path)
+					public function $name() {
+						${
+							if (useFactory)
+								macro var provider = providerFactory()
+							else
+								macro null
+						};
+						provider.projection.push($v{name});
+						provider.scope.push($v{name});
+						var selectorPrevious = provider.selector;
+						provider.selector = v -> selectorPrevious(v).$name;
+						return ${routerGen(fCt)};
+					}
+				}).fields;
+				ret;
+			}
+		].fold((current, result : Array<Field>) -> {
+			return result.concat(current);
+		}, []);
+}
+
+class DirectoryRouterGen extends RouterGenBase {
+	override function anon(fields:Array<FieldInfo<Type>>, ct:ComplexType):Type {
+		return generate('bp.directory.routing.DirectoryRouter', (name, types) -> {
+			var ct = types[0].toComplex();
+			var additionalFields = getEntityPropertyRoutes(fields, ct -> {
+				macro new bp.directory.routing.Router.FieldRouter<$ct>(provider);
+			}, true).concat(getRouterBase(name, types[0].toComplex(), true).fields);
+
+			var ret = macro class $name {
+				var providerFactory:Void->bp.directory.Provider;
+
+				public function new(dataset:String, providerFactory:Void->bp.directory.Provider) {
+					this.providerFactory = () -> {
+						var provider = providerFactory();
+						provider.dataset = dataset;
+						provider;
+					};
+				}
+
+				// endpoint for single entity
+
+				@:sub("/$id")
+				public function getSingle(id:String) {
+					var provider = providerFactory();
+					provider.query.head["_id"] = id;
+					return new bp.directory.routing.Router.EntityRouter<$ct>(provider);
+				}
+			};
+
+			ret.fields = additionalFields.concat(ret.fields);
+			ret;
+		});
+	}
+}
+
+class EntityRouterGen extends RouterGenBase {
+	override function nullable(t:Type)
+		return t;
+
+	override function anon(fields:Array<FieldInfo<Type>>, ct:ComplexType):Type
+		return generate('bp.directory.routing.EntityRouter', (name, types) -> {
+			var ct = types[0].toComplex();
+			var additionalFields = getEntityPropertyRoutes(fields, ct -> macro new bp.directory.routing.Router.EntityFieldRouter<$ct>(provider));
+			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {};
+			ret.fields = additionalFields.concat(ret.fields);
+			ret;
+		});
+}
+
+class FieldRouterGenBase extends RouterGenBase {
+	function prim():Type
+		throw 'abstract';
+
 	function genPrim(name:String, ?query:Bool = false) {
-		return generate(name, (name, types) -> getCollectionFieldRouter(name, types[0].toComplex()));
+		return generate(name, (name, types) -> getRouterBase(name, types[0].toComplex()));
 	}
 
 	override function int() {
@@ -221,7 +259,7 @@ class FieldRouterGenBase extends RouterGenBase {
 		var eCt = e.toComplex();
 
 		var ret = generate(name, (name, types) -> {
-			var additionalFields = if (isCollection) getCollectionFieldRouter(name, eCt).fields else [];
+			var additionalFields = if (isCollection) getRouterBase(name, eCt).fields else [];
 			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {
 				@:sub("/$index")
 				public function get(index:Int) {
@@ -233,7 +271,7 @@ class FieldRouterGenBase extends RouterGenBase {
 					return new bp.directory.routing.Router.FieldRouter<$eCt>(provider);
 				}
 			};
-			ret.fields = ret.fields.concat(additionalFields);
+			ret.fields = additionalFields.concat(ret.fields);
 			ret;
 		});
 		return ret;
@@ -243,8 +281,7 @@ class FieldRouterGenBase extends RouterGenBase {
 		var kCt = k.toComplex();
 		var vCt = v.toComplex();
 		var ret = generate(name, (name, types) -> {
-			var additionalFields = if (isCollection) getCollectionFieldRouter(name,
-				(macro(null : Map<$kCt, $vCt>)).typeof().sure().toComplex()).fields else [];
+			var additionalFields = if (isCollection) getRouterBase(name, (macro(null : Map<$kCt, $vCt>)).typeof().sure().toComplex()).fields else [];
 			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {
 				public function new(provider:bp.directory.Provider) {
 					super(provider);
@@ -271,7 +308,7 @@ class FieldRouterGenBase extends RouterGenBase {
 					return ${routerGen(vCt)};
 				}
 			};
-			ret.fields = ret.fields.concat(additionalFields);
+			ret.fields = additionalFields.concat(ret.fields);
 			ret;
 		});
 		return ret;
@@ -280,7 +317,7 @@ class FieldRouterGenBase extends RouterGenBase {
 	function genDyn(name:String, t:Type, routerGen:ComplexType->Expr, ?isCollection = false) {
 		var ct = t.toComplex();
 		var ret = generate(name, (name, types) -> {
-			var additionalFields = if (isCollection) getCollectionFieldRouter(name, ct).fields else [];
+			var additionalFields = if (isCollection) getRouterBase(name, ct).fields else [];
 			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {
 				public function new(provider:bp.directory.Provider) {
 					super(provider);
@@ -295,7 +332,7 @@ class FieldRouterGenBase extends RouterGenBase {
 					return ${routerGen(ct)};
 				}
 			};
-			ret.fields = ret.fields.concat(additionalFields);
+			ret.fields = additionalFields.concat(ret.fields);
 			ret;
 		});
 		return ret;
@@ -304,7 +341,7 @@ class FieldRouterGenBase extends RouterGenBase {
 
 class FieldRouterGen extends FieldRouterGenBase {
 	override function nullable(t:Type)
-		return new FieldRouterGen().run(t);
+		return t;
 
 	override function prim() {
 		return genPrim("bp.directory.routing.FieldRouter", true);
@@ -324,10 +361,11 @@ class FieldRouterGen extends FieldRouterGenBase {
 
 	override function anon(fields:Array<FieldInfo<Type>>, ct:ComplexType):Type {
 		return generate("bp.directory.routing.FieldRouter", (name, types) -> {
-			var ret = getCollectionFieldRouter(name, types[0].toComplex());
+			var ret = getRouterBase(name, types[0].toComplex());
+
 			ret.fields = ret.fields.concat(getEntityPropertyRoutes(fields, (ct:ComplexType) -> {
 				var ret = switch ct.toType().sure() {
-					case TAnonymous(_): macro new bp.directory.routing.Router.DirectoryRouter<$ct>("foo", () -> provider);
+					case TAnonymous(_): macro new bp.directory.routing.Router.DirectoryRouter<$ct>(provider.dataset, () -> provider);
 					default: macro new bp.directory.routing.Router.FieldRouter<$ct>(provider);
 				}
 				ret;
@@ -339,11 +377,11 @@ class FieldRouterGen extends FieldRouterGenBase {
 
 class EntityFieldRouterGen extends FieldRouterGenBase {
 	override function nullable(t:Type)
-		return new EntityFieldRouterGen().run(t);
+		return t;
 
 	override function anon(fields:Array<FieldInfo<Type>>, ct:ComplexType):Type {
 		return generate("bp.directory.routing.EntityFieldRouter", (name, types) -> {
-			var ret = getCollectionFieldRouter(name, types[0].toComplex());
+			var ret = getRouterBase(name, types[0].toComplex());
 
 			ret.fields = ret.fields.concat(getEntityPropertyRoutes(fields, ct -> {
 				var ret = switch ct.toType().sure() {
@@ -361,8 +399,10 @@ class EntityFieldRouterGen extends FieldRouterGenBase {
 			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {};
 			var eCt = t.toComplex();
 			ret.fields = ret.fields.concat((macro class {
-				@:get('/')
-				public function slice(query:bp.directory.routing.Router.ListQuery) {
+				@:get('/@slice')
+				public function slice(?query:bp.directory.routing.Router.ListQuery) {
+					if (query == null)
+						query = {};
 					provider.projection.push("$slice");
 					var skip = if (query != null && query._skip != null) query._skip else 0;
 					var limit = if (query != null && query._limit != null) query._limit else -1;

@@ -6,6 +6,7 @@ class ProviderBase {
 	public var query:DynamicBuilder = ({} : Dynamic);
 	public var scope:Array<String> = [];
 	public var selector = v -> v;
+	public var queryEngine:bp.directory.query.Engine;
 
 	public function fetch():Cursor {
 		throw 'abstract';
