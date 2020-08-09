@@ -1,0 +1,27 @@
+{
+	"license": "MIT",
+	"name": "bp_directory",
+	"classPath": "src",
+	"url": "https://github.com/brave-pi/bp_directory",
+	"contributors": [
+		"piboistudios",
+		"PhilipHayes"
+	],
+	"version": "0.0.0",
+	"releasenote": "Initial commit.",
+	"tags": [
+		"bp",
+		"brave",
+		"pi",
+		"directory",
+		"rest",
+		"macro",
+		"tink_web",
+		"tink",
+		"web"
+	],
+	"dependencies": {
+		"tink_typegen": "",
+		"tink_web": ""
+	},
+}

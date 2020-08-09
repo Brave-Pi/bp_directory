@@ -13,14 +13,13 @@ class MongoProvider extends ProviderBase {
 	function get_collection()
 		return client.db().collection(this.dataset);
 
-    var client:MongoClient;
-    
-    override function makeId(id:String) {
+	var client:MongoClient;
 
-
-        return new bp.mongo.bson.Bson.ObjectId(id);
-
-    }
+	override function makeId(id:String):Dynamic {
+		return try {
+			new bp.mongo.bson.Bson.ObjectId(id);
+		} catch (_) id;
+	}
 
 	override function fetch():bp.directory.Provider.Cursor {
 		return new WrappedMongoCursor(collection.find(query, {projection: projection}));

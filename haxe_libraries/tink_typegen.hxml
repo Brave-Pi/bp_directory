@@ -1,4 +1,4 @@
-# @install: lix --silent download "gh://github.com/brave-pi/tink_typecrawler#41495cefe99ecb71bcc472b53f194ae8a357b576" into tink_typegen/0.7.0/github/41495cefe99ecb71bcc472b53f194ae8a357b576
+# @install: lix --silent download "gh://github.com/brave-pi/tink_typecrawler#97a79296bd04994b72803fdf4a545cdabb7876d1" into tink_typegen/0.7.0/github/97a79296bd04994b72803fdf4a545cdabb7876d1
 -lib tink_macro
--cp ../tink_typecrawler/src
+-cp ${HAXE_LIBCACHE}/tink_typegen/0.7.0/github/97a79296bd04994b72803fdf4a545cdabb7876d1/src
 -D tink_typegen=0.7.0

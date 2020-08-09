@@ -1,4 +1,4 @@
-# @install: lix --silent download "gh://github.com/brave-pi/bp_hquery#f81ff7cefb84c1df19de044b261df2d89e5fc68d" into bp_hquery/0.0.0/github/f81ff7cefb84c1df19de044b261df2d89e5fc68d
+# @install: lix --silent download "gh://github.com/brave-pi/bp_hquery#97de06151c67d6728e94f3aef2fbf66fd1e49453" into bp_hquery/0.0.0/github/97de06151c67d6728e94f3aef2fbf66fd1e49453
 -lib hscript
--cp ../hscript-test/src
+-cp ${HAXE_LIBCACHE}/bp_hquery/0.0.0/github/97de06151c67d6728e94f3aef2fbf66fd1e49453/src
 -D bp_hquery=0.0.0
