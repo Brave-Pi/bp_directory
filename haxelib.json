@@ -23,5 +23,5 @@
 	"dependencies": {
 		"tink_typegen": "",
 		"tink_web": ""
-	},
+	}
 }
