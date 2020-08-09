@@ -1,4 +1,4 @@
 # @install: lix --silent download "gh://github.com/brave-pi/bp_mongodb#c511a768ca440942b69d8429b9674a9b07268b2e" into bp_mongodb/0.0.0/github/c511a768ca440942b69d8429b9674a9b07268b2e
 -lib hxnodejs
--cp ${HAXE_LIBCACHE}/bp_mongodb/0.0.0/github/c511a768ca440942b69d8429b9674a9b07268b2e/src
+-cp ../bp_mongodb/src
 -D bp_mongodb=0.0.0

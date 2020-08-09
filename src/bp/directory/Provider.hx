@@ -11,9 +11,10 @@ typedef Provider = {
     var selector:Dynamic->Dynamic;
     var queryEngine:bp.directory.query.Engine;
 	function fetch():Cursor;
-	function delete():Promise<DeleteResult>;
+	function delete():Promise<Dynamic>;
 	function update(patch:Dynamic):Promise<Dynamic>;
-	function create(patch:Dynamic):Promise<Dynamic>;
+    function create(n:Array<Dynamic>):Promise<Dynamic>;
+    function makeId(id:String):Dynamic;
 }
 
 typedef Cursor = {
@@ -25,5 +26,6 @@ typedef Cursor = {
 }
 
 typedef DeleteResult = {
-	deletedCount:Int
+    ?deletedCount:Int,
+    ?connection:Dynamic
 }

@@ -61,7 +61,7 @@ typedef User = {
 		var quux:Date;
 		var corge:Array<{
 			var grault:haxe.io.Bytes;
-			var garply:Map<Float, String>;
+			var garply:Map<Int, String>;
 		}>;
 		var nested:Map<String, Map<String, Map<String, Array<DeeplyNestedDoc>>>>;
 	}
@@ -70,6 +70,7 @@ typedef User = {
 }
 
 typedef WildDuckUser = {
+	@:optional var _id:String;
 	@:optional var username:String;
 	@:optional var name:String;
 	@:optional var password:String;
@@ -95,6 +96,8 @@ class LoggingProvider {
 		query:Dynamic,
 		dataset:String
 	};
+
+	public function makeId(v) return v;
 
 	public function fetch():Cursor {
 		this.data = ({
@@ -192,9 +195,10 @@ class Test {
 
 	var ts = Date.now();
 
+	inline function printRequestAndPayload(r:tink.http.Response.IncomingResponse)
+		return '${({requestHeader: '$header', providerResponse: this.provider.data.json(), responseHeader: '${r.header}'})}'; // .json();
+
 	public function test_remote() {
-		inline function printRequestAndPayload(r:tink.http.Response.IncomingResponse)
-			return '${({requestHeader: '$header', providerResponse: this.provider.data.json(), responseHeader: '${r.header}'})}'; // .json();
 		remote.roles()
 			.list({
 				_skip: 1,
@@ -403,7 +407,41 @@ class Test {
 					}
 				});
 			})
+			.next(_ -> {
+				wildduckRemote.create(tink.Json.stringify([
+					{
+						username: 'ReallyUniqueName',
+						password: 'quxquuxcorge'
+					}
+				]));
+			})
 			.next(r -> {
+				asserts.assert(r == Noise, "Should have been successfully created");
+				wildduckRemote.list({
+					_where: "username = 'ReallyUniqueName'",
+					_select: {username: 1}
+				});
+			})
+			.next(r -> {
+				r.body.all().next((d) -> (tink.Json.parse(d) : Array<{_id:String, username:String}>)).next(d -> {
+					asserts.assert(d.length == 1);
+					asserts.assert(d[0].username == 'ReallyUniqueName');
+					asserts.assert(d[0]._id != null);
+					wildduckRemote.getSingle(d[0]._id).delete({}).next(r -> new Pair(r, d[0]));
+				});
+			})
+			.next(pair -> {
+				asserts.assert(pair.a == Noise);
+				wildduckRemote.getSingle(pair.b._id).get();
+			})
+			.next(r -> {
+				r.body.all().next(r -> {
+					asserts.assert(r == "null");
+					asserts.done();
+				});
+			})
+			.recover(e -> {
+				asserts.assert(e == null);
 				asserts.done();
 			})
 			.eager();

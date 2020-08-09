@@ -27,15 +27,14 @@ class RouterBase {
 		this.provider = provider;
 	}
 }
-
-typedef ReadParams = {
-	@:optional var _select:DynamicAccess<Int>;
+typedef SearchParams = {
+    @:optional var _select:DynamicAccess<Int>;
 	@:optional var _where:String;
+}
+typedef ReadParams = {
+	>SearchParams,
 	@:optional
 	var _skip:Int;
 	@:optional
 	var _limit:Int;
 }
-
-typedef StreamQuery = ReadParams;
-typedef ListQuery = ReadParams;

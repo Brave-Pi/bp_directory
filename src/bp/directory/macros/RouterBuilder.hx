@@ -38,115 +38,160 @@ class EntityFieldRouterBuilder {
 }
 
 class RouterGenBase extends GenBase {
-	function getRouterBase(name:String, ct:ComplexType, ?useFactory = false)
-		return macro class $name extends bp.directory.routing.Router.RouterBase {
-			#if bp_grpc
-			@:post("/@stream")
-			public function stream(?query:bp.directory.routing.Router.StreamQuery, body:tink.io.Source.RealSource):tink.io.Source.RealSource {
-				${
-					if (useFactory)
-						macro var provider = providerFactory()
+	function patchType(ct:ComplexType):ComplexType
+		return switch ct {
+			case TAnonymous(fields):
+				TAnonymous(fields.map(field -> {
+					if (!field.meta.exists(m -> m.name == ':optional'))
+						field.meta.push({name: ':optional', pos: field.pos});
+					field;
+				}));
+			case _ if (ct.toType().sure().getID() == "Null"):
+				return ct;
+			default:
+				(macro(null : Null<$ct>)).typeof().sure().toComplex();
+		}
+
+	function getRouterBase(name:String, ct:ComplexType, ?useFactory = false, ?readOnly = true, ?single = false)
+		return {
+			var pCt = patchType(ct);
+			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {
+				function processQuery(query:bp.directory.routing.Router.SearchParams) {
+					${
+						if (useFactory)
+							macro var provider = providerFactory()
+						else
+							macro null
+					};
+					if (query == null)
+						query = {};
+
+					if (query._select == null)
+						provider.projection.replace(1);
 					else
-						macro null
-				};
-				if (query == null)
-					query = {};
-
-				if (query._select == null)
-					provider.projection.replace(1);
-				else
-					provider.projection.replace(query._select);
-				if (query._where != null && provider.queryEngine != null) {
-					provider.query.target["$expr"] = provider.queryEngine.parse(query._where);
-				}
-
-				var cursor = provider.fetch().map(provider.selector); // get a cursor and  map it by the selector set in the parent router
-				if (query != null && query._skip != null)
-					cursor.skip(query._skip);
-				if (query != null && query._limit != null)
-					cursor.limit(query._limit);
-				var reader = new bp.grpc.GrpcStreamParser<Bool>(body).toStream();
-				var writer:bp.grpc.GrpcStreamWriter.GrpcWriter<$ct> = new bp.grpc.GrpcStreamWriter<$ct>();
-				reader.forEach(req -> {
-					if (req) {
-						cursor.next().next(d -> {
-							if (d != null)
-								writer.write(d);
-							else
-								writer.end();
-							d;
-						}).map(d -> if (d != null) tink.streams.Stream.Handled.Resume else tink.streams.Stream.Handled.Finish);
-					} else {
-						writer.end();
-						tink.streams.Stream.Handled.Finish;
+						provider.projection.replace(query._select);
+					if (query._where != null && provider.queryEngine != null) {
+						provider.query.target["$expr"] = provider.queryEngine.parse(query._where);
 					}
-				}).handle(_ -> {
-					writer.end();
-				});
-				return writer;
-			}
-			#end
-
-			@:get("/@list")
-			public function list(?query:bp.directory.routing.Router.ListQuery):tink.io.Source.RealSource {
-				${
-					if (useFactory)
-						macro var provider = providerFactory()
-					else
-						macro null
-				};
-				if (query == null)
-					query = {};
-				if (query._select == null)
-					provider.projection.replace(1);
-				else
-					provider.projection.replace(query._select);
-				if (query._where != null && provider.queryEngine != null) {
-					provider.query.target["$expr"] = provider.queryEngine.parse(query._where);
+					return provider;
 				}
-				var cursor = provider.fetch().map(provider.selector); // get a cursor and  map it by the selector set in the parent router
-				if (query != null && query._skip != null)
-					cursor.skip(query._skip);
-				if (query != null && query._limit != null)
-					cursor.limit(query._limit);
-				var open = false;
-				var first = true;
-				var depleted = false;
-				return tink.streams.Stream.Generator.stream(function next(step) {
-					if (depleted)
-						step(tink.streams.Stream.Step.End);
-					else if (!open) {
-						open = true;
-						step(tink.streams.Stream.Step.Link(tink.Chunk.ofString("["), tink.streams.Stream.Generator.stream(next)));
-					} else
-						cursor.next() // cursor.next - returns Promise<Dynamic>
-							.next(d -> (d : Null<$ct>)) // Promise.next, cast d, a Dynamic, to a Null<$ct>, where $ct is the type of this field
-							.next(d -> {
-								if (d == null) {
-									// if d is null, the cursor is exhausted
-									depleted = true;
-									step(tink.streams.Stream.Step.Link(tink.Chunk.ofString("]"), tink.streams.Stream.Generator.stream(next)));
-									null;
-								} else
+			};
+			if (!single) {
+				ret.fields = ret.fields.concat((macro class {
+					#if bp_grpc
+					@:post("/@stream")
+					public function stream(?query:bp.directory.routing.Router.ReadParams, body:tink.io.Source.RealSource):tink.io.Source.RealSource {
+						var provider = processQuery(query);
+						var cursor = provider.fetch().map(provider.selector); // get a cursor and  map it by the selector set in the parent router
+						if (query != null && query._skip != null)
+							cursor.skip(query._skip);
+						if (query != null && query._limit != null)
+							cursor.limit(query._limit);
+						var reader = new bp.grpc.GrpcStreamParser<Bool>(body).toStream();
+						var writer:bp.grpc.GrpcStreamWriter.GrpcWriter<$ct> = new bp.grpc.GrpcStreamWriter<$ct>();
+						reader.forEach(req -> {
+							if (req) {
+								cursor.next().next(d -> {
+									if (d != null)
+										writer.write(d);
+									else
+										writer.end();
 									d;
-							})
-							.next(d -> if (d != null) (tink.Json.stringify(d) : String) else null)
-							.next(d -> if (d != null && !first) "," + d else {
-								first = false;
-								d;
-							})
-							.next(d -> if (d != null) tink.Chunk.ofString(d) else null)
-							.next(d -> {
-								if (d != null) {
-									step(tink.streams.Stream.Step.Link(d, tink.streams.Stream.Generator.stream(next)));
-								}
-								tink.core.Noise;
-							})
-							.eager(); // promises in tink are lazy, always remember they must be handled,
-					// here we don't need a a handler, so we just run it eagerly
-				});
+								}).map(d -> if (d != null) tink.streams.Stream.Handled.Resume else tink.streams.Stream.Handled.Finish);
+							} else {
+								writer.end();
+								tink.streams.Stream.Handled.Finish;
+							}
+						}).handle(_ -> {
+							writer.end();
+						});
+						return writer;
+					}
+					#end
+
+					@:get("/")
+					public function list(?query:bp.directory.routing.Router.ReadParams):tink.io.Source.RealSource {
+						var provider = processQuery(query);
+						var cursor = provider.fetch().map(provider.selector); // get a cursor and  map it by the selector set in the parent router
+						if (query != null && query._skip != null)
+							cursor.skip(query._skip);
+						if (query != null && query._limit != null)
+							cursor.limit(query._limit);
+						var open = false;
+						var first = true;
+						var depleted = false;
+						return tink.streams.Stream.Generator.stream(function next(step) {
+							if (depleted)
+								step(tink.streams.Stream.Step.End);
+							else if (!open) {
+								open = true;
+								step(tink.streams.Stream.Step.Link(tink.Chunk.ofString("["), tink.streams.Stream.Generator.stream(next)));
+							} else
+								cursor.next() // cursor.next - returns Promise<Dynamic>
+									.next(d -> (d : Null<$ct>)) // Promise.next, cast d, a Dynamic, to a Null<$ct>, where $ct is the type of this field
+									.next(d -> {
+										if (d == null) {
+											// if d is null, the cursor is exhausted
+											depleted = true;
+											step(tink.streams.Stream.Step.Link(tink.Chunk.ofString("]"), tink.streams.Stream.Generator.stream(next)));
+											null;
+										} else
+											d;
+									})
+									.next(d -> if (d != null) (tink.Json.stringify(d) : String) else null)
+									.next(d -> if (d != null && !first) "," + d else {
+										first = false;
+										d;
+									})
+									.next(d -> if (d != null) tink.Chunk.ofString(d) else null)
+									.next(d -> {
+										if (d != null) {
+											step(tink.streams.Stream.Step.Link(d, tink.streams.Stream.Generator.stream(next)));
+										}
+										tink.core.Noise;
+									})
+									.eager(); // promises in tink are lazy, always remember they must be handled,
+							// here we don't need a a handler, so we just run it eagerly
+						});
+					}
+				}).fields);
 			}
-		};
+			if (!readOnly) {
+				var aCt = (macro(null : Array<$ct>)).typeof().sure().toComplex();
+				ret.fields = (macro class {
+					@:patch('/')
+					@:consumes('application/json')
+					public function patch(?query:bp.directory.routing.Router.SearchParams, body:$pCt):tink.core.Promise<tink.core.Noise> {
+						var provider = processQuery(query);
+						return provider.update(body);
+					}
+
+					@:delete('/')
+					public function delete(?query:bp.directory.routing.Router.SearchParams):tink.core.Promise<tink.core.Noise> {
+						
+						var provider = processQuery(query);
+						trace(provider.query);
+						return provider.delete();
+					}
+
+					@:post('/')
+					public function create(body:tink.io.Source.RealSource):tink.core.Promise<tink.core.Noise> {
+						${
+							if (useFactory)
+								macro var provider = providerFactory()
+							else
+								macro null
+						};
+						return tink.io.Source.RealSourceTools.all(body)
+							.next(c -> c.toString())
+							.next(d -> tink.Json.parse((d : Array<$ct>)))
+							.next(provider.create)
+							.next(_ -> tink.core.Noise);
+					}
+				}).fields.concat(ret.fields);
+			}
+			ret;
+		}
 
 	function getEntityPropertyRoutes(fields:Array<FieldInfo<Type>>, routerGen:ComplexType->Expr, ?useFactory = false)
 		return [
@@ -184,7 +229,7 @@ class DirectoryRouterGen extends RouterGenBase {
 			var ct = types[0].toComplex();
 			var additionalFields = getEntityPropertyRoutes(fields, ct -> {
 				macro new bp.directory.routing.Router.FieldRouter<$ct>(provider);
-			}, true).concat(getRouterBase(name, types[0].toComplex(), true).fields);
+			}, true).concat(getRouterBase(name, types[0].toComplex(), true, false).fields);
 
 			var ret = macro class $name {
 				var providerFactory:Void->bp.directory.Provider;
@@ -202,7 +247,7 @@ class DirectoryRouterGen extends RouterGenBase {
 				@:sub("/$id")
 				public function getSingle(id:String) {
 					var provider = providerFactory();
-					provider.query.head["_id"] = id;
+					provider.query.head["_id"] = provider.makeId(id);
 					return new bp.directory.routing.Router.EntityRouter<$ct>(provider);
 				}
 			};
@@ -220,9 +265,21 @@ class EntityRouterGen extends RouterGenBase {
 	override function anon(fields:Array<FieldInfo<Type>>, ct:ComplexType):Type
 		return generate('bp.directory.routing.EntityRouter', (name, types) -> {
 			var ct = types[0].toComplex();
-			var additionalFields = getEntityPropertyRoutes(fields, ct -> macro new bp.directory.routing.Router.EntityFieldRouter<$ct>(provider));
-			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {};
-			ret.fields = additionalFields.concat(ret.fields);
+			var additionalFields = getRouterBase(name, ct, false, false,
+				true).fields.concat(getEntityPropertyRoutes(fields, ct -> macro new bp.directory.routing.Router.EntityFieldRouter<$ct>(provider), false));
+			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {
+				@:get('/')
+				public function get():tink.core.Promise<String> {
+					
+					return this.provider.fetch()
+						.map(this.provider.selector)
+						.next()
+						.next(d -> (d : Null<$ct>))
+						.next(d -> tink.Json.stringify(d));
+					// .next(d -> ((d:String) :tink.io.Source.RealSource));
+				}
+			};
+			ret.fields = ret.fields.concat(additionalFields);
 			ret;
 		});
 }
@@ -400,7 +457,7 @@ class EntityFieldRouterGen extends FieldRouterGenBase {
 			var eCt = t.toComplex();
 			ret.fields = ret.fields.concat((macro class {
 				@:get('/@slice')
-				public function slice(?query:bp.directory.routing.Router.ListQuery) {
+				public function slice(?query:bp.directory.routing.Router.ReadParams) {
 					if (query == null)
 						query = {};
 					provider.projection.push("$slice");
@@ -459,6 +516,7 @@ class EntityFieldRouterGen extends FieldRouterGenBase {
 						.next()
 						.next(d -> (d : Null<$ct>))
 						.next(d -> tink.Json.stringify(d));
+					// .next(d -> ((d:String) :tink.io.Source.RealSource));
 				}
 			};
 		});

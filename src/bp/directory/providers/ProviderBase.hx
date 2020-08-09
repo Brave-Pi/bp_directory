@@ -12,12 +12,15 @@ class ProviderBase {
 		throw 'abstract';
 	}
 
-	public function delete():Promise<DeleteResult>
+	public function delete():Promise<Dynamic>
 		throw 'abstract';
 
 	public function update(_):Promise<Dynamic>
 		throw 'abstract';
 
 	public function create(_):Promise<Dynamic>
-		throw 'abstract';
+        throw 'abstract';
+    
+    public function makeId(_):Dynamic
+        throw 'abstract';
 }

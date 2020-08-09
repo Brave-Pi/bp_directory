@@ -3,29 +3,39 @@ package bp.directory.providers;
 import bp.Mongo;
 
 class MongoProvider extends ProviderBase {
-
 	public function new(client) {
-        this.client = client;
-        this.queryEngine = new bp.hquery.Engine();
+		this.client = client;
+		this.queryEngine = new bp.hquery.Engine();
 	}
 
-	function setup()
-		return {
-			var collection = client.db().collection(this.dataset);
-			var projection:Dynamic = this.projection;
-			var query:Dynamic = this.query;
-			{
-				collection: collection,
-				projection: projection,
-				query: query
-			};
-		}
+	var collection(get, never):bp.Mongo.Collection<Dynamic>;
 
-	var client:MongoClient;
+	function get_collection()
+		return client.db().collection(this.dataset);
+
+    var client:MongoClient;
+    
+    override function makeId(id:String) {
+
+
+        return new bp.mongo.bson.Bson.ObjectId(id);
+
+    }
 
 	override function fetch():bp.directory.Provider.Cursor {
-		var setup = setup();
-		return new WrappedMongoCursor(setup.collection.find(query, {projection: projection}));
+		return new WrappedMongoCursor(collection.find(query, {projection: projection}));
+	}
+
+	override function delete():Promise<Dynamic> {
+		return collection.deleteMany(query);
+	}
+
+	override function update(patch:Dynamic):Promise<Dynamic> {
+		return collection.updateMany(query, patch);
+	}
+
+	override function create(n:Array<Dynamic>):Promise<Dynamic> {
+		return collection.insertMany(n);
 	}
 }
 
