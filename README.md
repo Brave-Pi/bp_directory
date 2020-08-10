@@ -92,7 +92,7 @@ There is an existing provider ([`bp.directory.providers.MongoProvider`](https://
 
 ## Querying and Projection
 
-The `_where` and `_select` parameters enable querying an projection.
+The `_where` and `_select` parameters enable querying and projection.
 - `_where` - Accepts an arbitrary string, passed to the `provider.queryEngine` (if it is not null)
 - `_select` - Specify whether or not a field is present in the result with 0 or 1; if you specify 0 for a field, it excludes this field and displays all others. If you specify 1 for a field, it will include this field and exclude all others except for the `_id` field (unless it is explicitly excluded)
 
@@ -114,3 +114,10 @@ And, you can read, update or delete single entities:
 - `GET /some-id` - Get the user with id "some-id"
 - `PATCH /some-id` - Updates the user with id "some-id"
 - `DELETE /some-id` - Deletes the user with id "some-id"
+
+
+## Client Generation
+
+Because the library utilizes `tink_web` it is possible to generate a `tink.web.proxy.Remote` from the same `DirectoryRouter` you created the REST API with in order to instantiate a strongly typed API client that exposes methods to access the REST API.
+
+You can see an example of this [here](https://github.com/Brave-Pi/bp_directory_example/blob/371727e516b8ffdcf3aada396b65f2d4c9f6c536/src/FrontEndServer3.hx#L25).
