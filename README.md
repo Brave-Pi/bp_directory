@@ -71,15 +71,15 @@ The Provider factory above refers to this type (which is a little too `Dynamic` 
 ```haxe
 
 typedef Provider = {
-	var dataset:String;
-	var projection:DynamicBuilder;
-	var query:DynamicBuilder;
-	var scope:Array<String>; // used to track the scope of custom queries
+    var dataset:String;
+    var projection:DynamicBuilder;
+    var query:DynamicBuilder;
+    var scope:Array<String>; // used to track the scope of custom queries
     var selector:Dynamic->Dynamic;
     var queryEngine:bp.directory.query.Engine;
-	function fetch():Cursor;
-	function delete():Promise<Dynamic>;
-	function update(patch:Dynamic):Promise<Dynamic>;
+    function fetch():Cursor;
+    function delete():Promise<Dynamic>;
+    function update(patch:Dynamic):Promise<Dynamic>;
     function create(n:Array<Dynamic>):Promise<Dynamic>;
     function makeId(id:String):Dynamic;
 }
