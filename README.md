@@ -88,7 +88,7 @@ You may notice it includes a `queryEngine`.
 
 The `queryEngine` can be null, in this case, querying is disabled.
 
-There is an existing provider ([`bp.directory.providers.MongoProvider`](https://github.com/Brave-Pi/bp_directory/blob/master/src/bp/directory/providers/MongoProvider.hx)) for MongoDB using [`hscript`](https://github.com/haxefoundation/hscript) to parse and transform the queries (via [`hquery`](https://github.com/brave-pi/hquery), which only handles a subset of the hscript AST)
+There is an existing provider ([`bp.directory.providers.MongoProvider`](https://github.com/Brave-Pi/bp_directory/blob/master/src/bp/directory/providers/MongoProvider.hx)) for MongoDB using [`hscript`](https://github.com/haxefoundation/hscript) to parse and transform the queries (via [`hquery`](https://github.com/brave-pi/bp_hquery), which only handles a subset of the hscript AST)
 
 ## Querying and Projection
 
