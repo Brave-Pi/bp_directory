@@ -28,8 +28,8 @@ Take this typedef of an anonymous structure:
 ```haxe
 typedef User = {
     var _id:String;
-	var username:String;
-	var password:String;
+    var username:String;
+    var password:String;
     var address:String;
 }
 ```
