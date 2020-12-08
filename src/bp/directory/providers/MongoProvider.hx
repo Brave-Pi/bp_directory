@@ -22,7 +22,8 @@ class MongoProvider extends ProviderBase {
 	}
 
 	override function fetch():bp.directory.Provider.Cursor {
-		return new WrappedMongoCursor(collection.find(query, {projection: projection}));
+		var call = if(projection == 1) collection.find(query) else collection.find(query, {projection: projection});
+		return new WrappedMongoCursor(call);
 	}
 
 	override function delete():Promise<Dynamic> {
@@ -35,6 +36,7 @@ class MongoProvider extends ProviderBase {
 
 	override function create(n:Array<Dynamic>):Promise<Dynamic> {
 		return collection.insertMany(n);
+		
 	}
 }
 
@@ -47,7 +49,9 @@ class WrappedMongoCursor {
 
 	public function next() {
 		var next:Promise<Dynamic> = this.cursor.next();
-		return next.next(d -> Success(d));
+		return next.next(d -> {
+			Success(d);
+		});
 	}
 
 	public function maxTimeMS(ms:Float) {
