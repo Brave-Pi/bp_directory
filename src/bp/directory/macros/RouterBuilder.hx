@@ -167,15 +167,15 @@ class RouterGenBase extends GenBase {
 					}
 
 					@:delete('/')
-					public function delete(?query:bp.directory.routing.Router.SearchParams):tink.core.Promise<tink.core.Noise> {
+					public function delete(?query:bp.directory.routing.Router.SearchParams):tink.core.Promise<haxe.DynamicAccess<Dynamic>> {
 						
 						var provider = processQuery(query);
-						trace(provider.query);
+						
 						return provider.delete();
 					}
 
 					@:post('/')
-					public function create(body:tink.io.Source.RealSource):tink.core.Promise<tink.core.Noise> {
+					public function create(body:tink.io.Source.RealSource):tink.core.Promise<haxe.DynamicAccess<Dynamic>> {
 						${
 							if (useFactory)
 								macro var provider = providerFactory()
@@ -185,8 +185,7 @@ class RouterGenBase extends GenBase {
 						return tink.io.Source.RealSourceTools.all(body)
 							.next(c -> c.toString())
 							.next(d -> tink.Json.parse((d : Array<$ct>)))
-							.next(provider.create)
-							.next(_ -> tink.core.Noise);
+							.next(provider.create);
 					}
 				}).fields.concat(ret.fields);
 			}
