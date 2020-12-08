@@ -31,6 +31,9 @@ class MongoProvider extends ProviderBase {
 	}
 
 	override function update(patch:Dynamic):Promise<Dynamic> {
+		Reflect.deleteField(patch, '_id');
+		var dyn:haxe.DynamicAccess<Dynamic> = {};
+		dyn.set("$set", patch);
 		return collection.updateMany(query, patch);
 	}
 
