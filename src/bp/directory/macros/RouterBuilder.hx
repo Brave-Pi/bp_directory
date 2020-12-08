@@ -399,7 +399,8 @@ class FieldRouterGenBase extends RouterGenBase {
 class FieldRouterGen extends FieldRouterGenBase {
 	override function nullable(t:Type)
 		return t;
-
+	override function enumAbstract(names:Array<Expr>, e:Type, ct:ComplexType, pos:Position):Type
+		return e;
 	override function prim() {
 		return genPrim("bp.directory.routing.FieldRouter", true);
 	}
