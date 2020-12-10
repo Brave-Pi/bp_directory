@@ -207,8 +207,6 @@ class RouterGenBase extends GenBase {
 							return (patch : Dynamic);
 						}
 						patch = removeOmitted(patch);
-						trace('patch:');
-						trace(patch);
 						return provider.update(patch);
 					}
 
