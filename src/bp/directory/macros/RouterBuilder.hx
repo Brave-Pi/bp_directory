@@ -43,10 +43,12 @@ class RouterGenBase extends GenBase {
 			case TType(_.get() => defType, _):
 				switch defType.type {
 					case TAnonymous(ref):
-						var anon = ref.get();
+						var anon:haxe.macro.Type.AnonType = ref.get();
 						anon.fields = anon.fields.map(field -> {
 							if (!field.meta.has(':optional'))
 								field.meta.add(':optional', [], field.pos);
+							var fCt = field.type.toComplex();
+							field.type = (macro(null : haxe.ds.Option<Null<$fCt>>)).typeof().sure();
 							field;
 						});
 
@@ -54,8 +56,7 @@ class RouterGenBase extends GenBase {
 							get: () -> anon,
 							toString: ref.toString
 						});
-						
-						
+
 						return newType.toComplex();
 					default:
 				}
@@ -64,7 +65,6 @@ class RouterGenBase extends GenBase {
 		return (macro(null : Null<$ct>)).typeof().sure().toComplex();
 	}
 
-	
 	function getRouterBase(name:String, ct:ComplexType, ?useFactory = false, ?readOnly = true, ?single = false)
 		return {
 			var pCt = patchType(ct);
@@ -186,11 +186,30 @@ class RouterGenBase extends GenBase {
 				var aCt = (macro(null : Array<$ct>)).typeof().sure().toComplex();
 				ret.fields = (macro class {
 					@:patch('/')
-					
-					
 					public function patch(?query:bp.directory.routing.Router.SearchParams, body:String):tink.core.Promise<tink.core.Noise> {
 						var provider = processQuery(query);
-						return provider.update(haxe.Json.parse(body));
+						var patch = (tink.Json.parse(body) : $pCt);
+
+						function removeOmitted(_patch:Dynamic) {
+							var patch:haxe.DynamicAccess<Dynamic> = _patch;
+							for (i in patch.keys()) {
+								var field = patch[i];
+								switch (field : haxe.ds.Option<Dynamic>) {
+									case Some(v):
+										if (Reflect.isObject(v))
+											patch[i] = removeOmitted(v);
+										else
+											patch[i] = v;
+									case None:
+										Reflect.deleteField(patch, i);
+								}
+							}
+							return (patch : Dynamic);
+						}
+						patch = removeOmitted(patch);
+						trace('patch:');
+						trace(patch);
+						return provider.update(patch);
 					}
 
 					@:delete('/')
