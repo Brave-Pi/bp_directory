@@ -18,7 +18,7 @@ class MongoProvider extends ProviderBase {
 	override function makeId(id:String):Dynamic {
 		return try {
 			new bp.mongo.bson.Bson.ObjectId(id);
-		} catch (_) id;
+		} catch (e) id;
 	}
 
 	override function fetch():bp.directory.Provider.Cursor {
@@ -39,7 +39,6 @@ class MongoProvider extends ProviderBase {
 
 	override function create(n:Array<Dynamic>):Promise<Dynamic> {
 		return collection.insertMany(n);
-		
 	}
 }
 

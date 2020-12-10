@@ -38,20 +38,33 @@ class EntityFieldRouterBuilder {
 }
 
 class RouterGenBase extends GenBase {
-	function patchType(ct:ComplexType):ComplexType
-		return switch ct {
-			case TAnonymous(fields):
-				TAnonymous(fields.map(field -> {
-					if (!field.meta.exists(m -> m.name == ':optional'))
-						field.meta.push({name: ':optional', pos: field.pos});
-					field;
-				}));
-			case _ if (ct.toType().sure().getID() == "Null"):
-				return ct;
-			default:
-				(macro(null : Null<$ct>)).typeof().sure().toComplex();
-		}
+	function patchType(ct:ComplexType):ComplexType {
+		switch ct.toType().sure() {
+			case TType(_.get() => defType, _):
+				switch defType.type {
+					case TAnonymous(ref):
+						var anon = ref.get();
+						anon.fields = anon.fields.map(field -> {
+							if (!field.meta.has(':optional'))
+								field.meta.add(':optional', [], field.pos);
+							field;
+						});
 
+						var newType = haxe.macro.Type.TAnonymous({
+							get: () -> anon,
+							toString: ref.toString
+						});
+						
+						
+						return newType.toComplex();
+					default:
+				}
+			default:
+		}
+		return (macro(null : Null<$ct>)).typeof().sure().toComplex();
+	}
+
+	
 	function getRouterBase(name:String, ct:ComplexType, ?useFactory = false, ?readOnly = true, ?single = false)
 		return {
 			var pCt = patchType(ct);
@@ -72,7 +85,20 @@ class RouterGenBase extends GenBase {
 						provider.projection.replace(query._select);
 					if (query._where != null && provider.queryEngine != null) {
 						provider.query.target["$expr"] = provider.queryEngine.parse(query._where);
+						inline function objectIdToString(head:haxe.DynamicAccess<Dynamic>) {
+							if (head["$eq"] != null) {
+								if (head["$eq"][0] == "$_id") {
+									var dynAcc:haxe.DynamicAccess<Dynamic> = {};
+									dynAcc["$toString"] = "$_id";
+									head["$eq"][0] = dynAcc;
+								}
+							}
+						}
+
+						objectIdToString(provider.query.target["$expr"]);
 					}
+					if (provider.query.head['_id'] != null)
+						provider.query.head['_id'] = provider.makeId(provider.query.head['_id']);
 					return provider;
 				}
 			};
@@ -160,17 +186,17 @@ class RouterGenBase extends GenBase {
 				var aCt = (macro(null : Array<$ct>)).typeof().sure().toComplex();
 				ret.fields = (macro class {
 					@:patch('/')
-					@:consumes('application/json')
-					public function patch(?query:bp.directory.routing.Router.SearchParams, body:$pCt):tink.core.Promise<tink.core.Noise> {
+					
+					
+					public function patch(?query:bp.directory.routing.Router.SearchParams, body:String):tink.core.Promise<tink.core.Noise> {
 						var provider = processQuery(query);
-						return provider.update(body);
+						return provider.update(haxe.Json.parse(body));
 					}
 
 					@:delete('/')
 					public function delete(?query:bp.directory.routing.Router.SearchParams):tink.core.Promise<haxe.DynamicAccess<Dynamic>> {
-						
 						var provider = processQuery(query);
-						
+
 						return provider.delete();
 					}
 
@@ -269,7 +295,6 @@ class EntityRouterGen extends RouterGenBase {
 			var ret = macro class $name extends bp.directory.routing.Router.RouterBase {
 				@:get('/')
 				public function get():tink.core.Promise<String> {
-					
 					return this.provider.fetch()
 						.map(this.provider.selector)
 						.next()
@@ -398,8 +423,10 @@ class FieldRouterGenBase extends RouterGenBase {
 class FieldRouterGen extends FieldRouterGenBase {
 	override function nullable(t:Type)
 		return t;
+
 	override function enumAbstract(names:Array<Expr>, e:Type, ct:ComplexType, pos:Position):Type
 		return e;
+
 	override function prim() {
 		return genPrim("bp.directory.routing.FieldRouter", true);
 	}
