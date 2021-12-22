@@ -1,7 +1,11 @@
---library tink_typegen
---library tink_web
---library bp_grpc
---library bp_mongodb
+--library tink_typegen:git:https://github.com/brave-pi/tink_typecrawler
+--library tink_core:git:https://github.com/haxetink/tink_core
+--library tink_web:git:https://github.com/brave-pi/tink_web
+--library tink_io:0.8.0
+--library tink_streams:0.3.3
+# --library bp_grpc:git:https://github.com/brave-pi/bp_grpc
+--library bp_mongodb:git:https://github.com/brave-pi/bp_mongodb
 --library hscript
---library bp_hquery
+--library bp_hquery:git:https://github.com/brave-pi/bp_hquery
+--library tink_querystring:git:https://github.com/haxetink/tink_querystring
 -cp src

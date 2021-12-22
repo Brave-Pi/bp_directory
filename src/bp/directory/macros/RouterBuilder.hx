@@ -164,7 +164,9 @@ class RouterGenBase extends GenBase {
 										} else
 											d;
 									})
-									.next(d -> if (d != null) (tink.Json.stringify(d) : String) else null)
+									.next(d -> {
+										return if (d != null) (tink.Json.stringify(d) : String) else null;
+									})
 									.next(d -> if (d != null && !first) "," + d else {
 										first = false;
 										d;
@@ -174,7 +176,7 @@ class RouterGenBase extends GenBase {
 										if (d != null) {
 											step(tink.streams.Stream.Step.Link(d, tink.streams.Stream.Generator.stream(next)));
 										}
-										tink.core.Noise;
+										(null : tink.core.Noise);
 									})
 									.eager(); // promises in tink are lazy, always remember they must be handled,
 							// here we don't need a a handler, so we just run it eagerly
@@ -260,7 +262,7 @@ class RouterGenBase extends GenBase {
 				}).fields;
 				ret;
 			}
-		].fold((current, result : Array<Field>) -> {
+		].fold((current, result:Array<Field>) -> {
 			return result.concat(current);
 		}, []);
 }
@@ -501,7 +503,7 @@ class EntityFieldRouterGen extends FieldRouterGenBase {
 			var eCt = t.toComplex();
 			ret.fields = ret.fields.concat((macro class {
 				@:get('/@slice')
-				public function slice(?query:bp.directory.routing.Router.ReadParams) {
+				public function slice(?query:bp.directory.routing.Router.ReadParams):tink.io.Source.RealSource {
 					if (query == null)
 						query = {};
 					provider.projection.push("$slice");
@@ -515,18 +517,24 @@ class EntityFieldRouterGen extends FieldRouterGenBase {
 						.next() // cursor.next - returns Promise<Dynamic>
 						.next(d -> (d : Array<$eCt>)) // Promise.next, cast d, a Dynamic, to a Null<$ct>, where $ct is the type of this field
 						.next(array -> {
-							if (array != null)
-								tink.core.Promise.inSequence(array.map(el -> new tink.core.Promise((resolve, reject) -> haxe.Timer.delay(() -> {
-									var yield = if (el == null) tink.streams.Stream.Yield.End else
-										tink.streams.Stream.Yield.Data(tink.Chunk.ofString(tink.Json.stringify(el)));
+							if (array != null) {
+                                tink.core.Promise.inSequence(array.map(el -> new tink.core.Promise((resolve, reject) -> {
+                                    var yield = if (el == null) tink.streams.Stream.Yield.End else
+                                        tink.streams.Stream.Yield.Data(tink.Chunk.ofString(tink.Json.stringify(el)));
+									haxe.Timer.delay(() -> {
+										_signal.trigger(yield);
+									}, 0);
 									signal.nextTime(_ -> {
-										resolve(yield);
 										true;
-									}).eager();
-									_signal.trigger(yield);
-								}, 0)))).next(_ -> tink.core.Noise);
-							else
-								new tink.core.Promise((resolve, reject) -> resolve(tink.core.Noise));
+									}).handle(_ -> resolve(yield));
+								}))).next(_ -> (null : tink.core.Noise));
+							} else
+								new tink.core.Promise((resolve, reject) -> {
+									tink.core.Future.sync(() -> {
+										resolve((null : tink.core.Noise));
+										null;
+									}).handle(_ -> {});
+								});
 						})
 						.eager(); // promises in tink are lazy, always remember they must be handled,
 					return (new tink.streams.Stream.SignalStream(signal) : tink.streams.Stream.Generator<tink.Chunk, tink.core.Error>);

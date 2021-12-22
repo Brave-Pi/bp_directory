@@ -1,7 +1,8 @@
 dev.hxml
 -D debug
+--library tink_testrunner:0.8.0
 --library tink_unittest
---library bp_test_utils
+--library bp_test_utils:git:https://github.com/brave-pi/bp_test_utils
 -cp test
 -D analyzer-optimize
 -main RunTests

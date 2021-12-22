@@ -11,10 +11,11 @@ import tink.web.routing.Context;
 import tink.web.proxy.Remote;
 import tink.http.clients.*;
 import tink.url.Host;
-import bp.grpc.GrpcStreamWriter;
 import tink.streams.*;
+#if bp_grpc
+import bp.grpc.GrpcStreamWriter;
 import bp.grpc.GrpcStreamParser;
-
+#end
 using Lambda;
 using bp.test.Utils;
 using RunTests;
@@ -199,15 +200,20 @@ class Test {
 		return '${({requestHeader: '$header', providerResponse: this.provider.data.json(), responseHeader: '${r.header}'})}'; // .json();
 
 	public function test_remote() {
-		remote.roles()
+		var roles = remote.roles()
 			.list({
 				_skip: 1,
 				_limit: 3,
-			})
-			.next(r -> {
+			});
+            trace('got roles promise: $roles');
+			roles.next(r -> {
 				remote.getSingle('test').roles().slice({
 					_limit: 3,
-				});
+				})
+                .next(r -> {
+                    trace('got single: $r');
+                    r;
+                });
 			})
 			.next(r -> {
 				asserts.assert(match(["roles"], (projection, query) -> {
@@ -346,15 +352,20 @@ class Test {
 						asserts.assert(e == null);
 					})
 					.next(_ -> {
+                        #if bp_grpc
 						var writer:GrpcWriter<Bool> = new GrpcStreamWriter<Bool>();
 						wildduckRemote.username().stream({
 							_limit: 10
 						}, writer).next((res:tink.http.Response.IncomingResponse) -> {
 							new tink.core.Pair(res, cast writer);
 						});
+                        #else
+                        null;
+                        #end
 					});
 			})
 			.next(pair -> {
+                #if bp_grpc
 				var res = pair.a;
 				var writer = pair.b;
 				var reader:GrpcReader<String> = new bp.grpc.GrpcStreamParser<String>(res.body);
@@ -377,6 +388,7 @@ class Test {
 						tink.streams.Stream.Handled.Resume;
 					}
 				}).next(_ -> {
+                    // #if bp_grpc
 					asserts.assert(usernames.length == 10, 'Should have 10 usernames: $usernames');
 					var writer:GrpcWriter<Bool> = new GrpcStreamWriter<Bool>();
 					wildduckRemote.stream({
@@ -390,8 +402,12 @@ class Test {
 						new tink.core.Pair(res, cast writer);
 					});
 				});
+                #else
+                null;
+                #end
 			})
 			.next(pair -> {
+                #if bp_grpc
 				var res = pair.a;
 				var writer = pair.b;
 				var _reader:GrpcReader<{name:String}> = new bp.grpc.GrpcStreamParser<{name:String}>(res.body);
@@ -406,6 +422,9 @@ class Test {
 						tink.streams.Stream.Handled.Resume;
 					}
 				});
+                #else
+                null;
+                #end
 			})
 			.next(_ -> {
 				wildduckRemote.create(tink.Json.stringify([
@@ -416,7 +435,7 @@ class Test {
 				]));
 			})
 			.next(r -> {
-				asserts.assert(r == Noise, "Should have been successfully created");
+				asserts.assert(r == cast Noise, "Should have been successfully created");
 				wildduckRemote.list({
 					_where: "username = 'ReallyUniqueName'",
 					_select: {username: 1}
@@ -431,7 +450,7 @@ class Test {
 				});
 			})
 			.next(pair -> {
-				asserts.assert(pair.a == Noise);
+				asserts.assert(pair.a == cast Noise);
 				wildduckRemote.getSingle(pair.b._id).get();
 			})
 			.next(r -> {
