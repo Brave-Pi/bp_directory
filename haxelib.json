@@ -21,7 +21,14 @@
 		"web"
 	],
 	"dependencies": {
-		"tink_typegen": "",
-		"tink_web": ""
+		"tink_typegen": "git:https://github.com/brave-pi/tink_typecrawler",
+		"tink_web": "git:https://github.com/haxetink/tink_web",
+		"tink_io": "0.8.0",
+		"tink_core": "git:https://github.com/haxetink/tink_core",
+		"tink_querystring": "git:https://github.com/haxetink/tink_querystring",
+		"bp_hquery": "git:https://github.com/haxetink/bp_hquery",
+		"bp_mongodb": "git:https://github.com/haxetink/bp_mongodb",
+		"hscript": "",
+		"tink_streams": "0.3.3",
 	}
 }
