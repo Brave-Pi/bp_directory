@@ -29,6 +29,6 @@
 		"bp_hquery": "git:https://github.com/haxetink/bp_hquery",
 		"bp_mongodb": "git:https://github.com/haxetink/bp_mongodb",
 		"hscript": "",
-		"tink_streams": "0.3.3",
+		"tink_streams": "0.3.3"
 	}
 }
